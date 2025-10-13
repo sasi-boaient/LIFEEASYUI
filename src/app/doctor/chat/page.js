@@ -183,7 +183,7 @@ export default function DoctorChatDashboard() {
                                 LE
                             </Avatar>
                             <div>
-                                <div className="font-semibold text-sm text-gray-800">LifeEase Hospital</div>
+                                <div className="font-semibold text-sm text-gray-800">LifeEasy Hospital</div>
                                 <div className="text-[10px] text-gray-400">Doctor Assistant AI</div>
                             </div>
                         </div>
