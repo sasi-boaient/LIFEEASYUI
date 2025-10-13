@@ -5,32 +5,24 @@ import {
     Toolbar,
     IconButton,
     Avatar,
-    Badge,
-    Box,
     Menu,
     MenuItem,
-    Tabs,
-    Tab,
     Paper,
     InputBase,
     Chip,
-    Divider,
+    Button,
+    ListItemIcon
 } from "@mui/material";
 import {
     Search as SearchIcon,
     MoreVert,
-    Mic,
     Send,
-    ArrowBackIosNew,
+    ArrowBackIosNew
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import profilePic from "../../assests/doctor.png";
 import logo from "../../assests/logo.jpg";
-import { ListItemIcon } from "@mui/material";
-import { FaUser, FaCog, FaSignOutAlt } from "react-icons/fa";
-import { FaHeartbeat, FaPills, FaMicrophone } from "react-icons/fa";
-import { Button } from "@mui/material";
-import { FaXRay, FaEdit, FaTimes } from "react-icons/fa";
+import { FaUser, FaCog, FaSignOutAlt, FaHeartbeat, FaMicrophone, FaXRay, FaEdit, FaTimes } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
 
 const sampleData = {
@@ -41,6 +33,7 @@ const sampleData = {
             desc: "Diabetics Review",
             scheduletime: "11:30 AM",
             mrn: "MRN001",
+            status: "Active",
             age: 45,
             sex: "F",
             allergy: "Penicillin",
@@ -49,11 +42,10 @@ const sampleData = {
             labs: { glucose: 120, cholesterol: 180 },
             medications: ["Metformin", "Amlodipine"],
             messages: [
-                { sender: "John", text: "Good morning Doctor, my blood sugar was 180 mg/dL this morning 😕", time: "08:10 AM", date: "2025-10-13" },
-                { sender: "You", text: "Thanks for updating, John. Did you have breakfast before measuring it?", time: "08:12 AM", date: "2025-10-13" },
-                { sender: "John", text: "No, I measured it fasting. I also feel a bit thirsty and tired.", time: "08:15 AM", date: "2025-10-13" },
+                { sender: "chatagent", text: "Hello Doctor, I've loaded Anita's case. Try /soap/labs/ or ask me to summarize triage?", time: "08:10 AM", date: "2025-10-13" },
+                { sender: "You", text: "/soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
+                { sender: "chatagent", text: "Drafting a SOAP template. I will surface risk flags and suggested orders online", time: "08:15 AM", date: "2025-10-13" },
             ],
-
             previousCheckups: [
                 {
                     date: "2025-09-20",
@@ -63,15 +55,6 @@ const sampleData = {
                     notes: "Stable condition, advised diet control.",
                     desc: "Routine diabetic checkup.",
                     nextAppointment: "2025-10-20",
-                },
-                {
-                    date: "2025-08-15",
-                    vitals: { HR: 80, BP: "122/78", Temp: "98.4°F" },
-                    labs: { glucose: 130, cholesterol: 190 },
-                    medications: ["Metformin", "Amlodipine"],
-                    notes: "Slightly elevated glucose, continue meds.",
-                    desc: "Follow-up for elevated glucose levels.",
-                    nextAppointment: "2025-09-15",
                 },
             ],
         },
@@ -84,12 +67,15 @@ const sampleData = {
             age: 32,
             sex: "M",
             allergy: "None",
+            status: "Active",
             condition: "Asthma",
             vitals: { HR: 82, SpO2: "95%", BP: "118/78", Temp: "98.9°F" },
             labs: { glucose: 110, cholesterol: 170 },
             medications: ["Salbutamol"],
             messages: [
-                { sender: "Emma", text: "I took my meds 💊", time: "10:10 AM", date: "2025-10-09" },
+                { sender: "chatagent", text: "Hello Doctor, I've loaded Ravi's case. Try /soap/labs/ or ask me to summarize triage?", time: "08:10 AM", date: "2025-10-13" },
+                { sender: "You", text: "/soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
+                { sender: "chatagent", text: "Drafting a SOAP template. I will surface risk flags and suggested orders online", time: "08:15 AM", date: "2025-10-13" },
             ],
             previousCheckups: [
                 {
@@ -99,16 +85,28 @@ const sampleData = {
                     medications: ["Salbutamol"],
                     notes: "Stable, continue current meds.",
                 },
-                {
-                    date: "2025-07-25",
-                    vitals: { HR: 85, BP: "122/82", Temp: "98.9°F" },
-                    labs: { glucose: 112, cholesterol: 168 },
-                    medications: ["Salbutamol"],
-                    notes: "Mild asthma flare, advised inhaler use.",
-                },
             ],
         },
     ],
+};
+
+// Default patient for empty state
+const defaultPatient = {
+    id: 0,
+    name: "No Active Patient",
+    desc: "No patient selected",
+    mrn: "-",
+    age: "-",
+    sex: "-",
+    allergy: "-",
+    condition: "N/A",
+    vitals: { HR: "-", SpO2: "-", BP: "-", Temp: "-" },
+    labs: { glucose: "-", cholesterol: "-" },
+    medications: [],
+    messages: [
+        { sender: "chatagent", text: "No active patients. Please select or add a new patient.", time: "", date: "" },
+    ],
+    previousCheckups: [],
 };
 
 /* ---------- Helper components ---------- */
@@ -125,65 +123,102 @@ const VitalsCard = ({ title, value }) => (
 
 /* ---------- Main Component ---------- */
 export default function DoctorChatDashboard() {
-    const [selectedPatientId, setSelectedPatientId] = useState(sampleData.patients[0].id);
+    const [selectedPatientId, setSelectedPatientId] = useState(sampleData.patients[0]?.id || null);
     const [search, setSearch] = useState("");
     const [tabIndex, setTabIndex] = useState(0);
     const [anchorEl, setAnchorEl] = useState(null);
     const [messageText, setMessageText] = useState("");
+    const [patients, setPatients] = useState(sampleData.patients);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
 
-    const patients = sampleData.patients;
+    // Filter only active patients
+    const activePatients = patients.filter((p) => p.status === "Active");
+
+    // Safe selected patient
     const selectedPatient = useMemo(
-        () => patients.find((p) => p.id === selectedPatientId),
-        [patients, selectedPatientId]
+        () => activePatients.find((p) => p.id === selectedPatientId) || defaultPatient,
+        [activePatients, selectedPatientId]
     );
 
+    // Handle Close button → mark patient as inactive
+    const handleClose = () => {
+        if (!selectedPatientId) return;
+
+        setPatients((prev) => {
+            const updated = prev.map((p) =>
+                p.id === selectedPatientId ? { ...p, status: "Inactive" } : p
+            );
+
+            const remainingActive = updated.filter((p) => p.status === "Active");
+
+            if (remainingActive.length === 0) {
+                setSelectedPatientId(null);
+                return updated;
+            }
+
+            // Circular next selection
+            const allIds = updated.map((p) => p.id);
+            const currentIndex = allIds.indexOf(selectedPatientId);
+            let nextId = null;
+            for (let i = 1; i <= allIds.length; i++) {
+                const nextIndex = (currentIndex + i) % allIds.length;
+                if (updated[nextIndex].status === "Active") {
+                    nextId = updated[nextIndex].id;
+                    break;
+                }
+            }
+
+            setTimeout(() => setSelectedPatientId(nextId), 0);
+            return updated;
+        });
+    };
+
     const onSendMessage = () => {
-        if (!messageText.trim()) return;
-        selectedPatient.messages.push({
+        if (!messageText.trim() || selectedPatient.id === 0) return;
+
+        // Add your message
+        const newMessage = {
             sender: "You",
             text: messageText.trim(),
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             date: new Date().toISOString().split("T")[0],
-        });
+        };
+
+        // Default bot reply
+        const botReply = {
+            sender: "chatagent",
+            text: "Hello Doctor, I am LifeEase Agent. How can I assist you further?",
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            date: new Date().toISOString().split("T")[0],
+        };
+
+        // Update messages
+        selectedPatient.messages.push(newMessage, botReply);
+
+        // Clear input
         setMessageText("");
-        setSearch((s) => s + "");
+        setSearch((s) => s + ""); // Trigger re-render
     };
 
-    const [isRecording, setIsRecording] = useState(false);
 
     const buttons = [
         { icon: <MdMedicalServices size={14} />, label: "MRI" },
         { icon: <FaXRay size={14} />, label: "X-Ray" },
         { icon: <FaHeartbeat size={14} />, label: "Vitals" },
-        { icon: <FaPills size={14} />, label: "Medications" },
         { icon: <FaEdit size={14} />, label: "Edit Summary" },
-        { icon: <FaTimes size={14} />, label: "Close" },
     ];
 
     return (
         <div className="h-screen flex flex-col bg-gray-100 text-gray-800 text-sm">
-            {/* AppBar - 10% */}
+            {/* AppBar */}
             <div className="h-[10%]">
                 <AppBar position="sticky" color="transparent" elevation={0} className="backdrop-blur-sm h-full">
                     <Toolbar className="flex justify-between p-2 h-full">
                         <div className="flex items-center gap-2">
-                            <Avatar
-                                src={logo.src}
-                                sx={{
-                                    position: "relative",
-                                    // bgcolor: "white",
-                                    width: 44,
-                                    height: 44,
-                                    fontWeight: 600,
-                                    // border: "1px solid #9ca3af",
-                                    zIndex: 10,
-                                    padding: "1px"
-                                }}
-                            >
-                                LE
-                            </Avatar>
+                            <Avatar src={logo.src} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
                             <div>
-                                <div className="font-semibold text-sm text-gray-800">LifeEasy Hospital</div>
+                                <div className="font-semibold text-sm text-blue-600">LifeEase Hospital</div>
                                 <div className="text-[10px] text-gray-400">Doctor Assistant AI</div>
                             </div>
                         </div>
@@ -193,26 +228,9 @@ export default function DoctorChatDashboard() {
                                     <div className="font-medium text-[11px]">Dr. John Doe</div>
                                     <div className="text-[10px] text-gray-400">Cardiologist</div>
                                 </div>
-                                <motion.div
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    className="relative"
-                                >
+                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
                                     <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 opacity-60 blur-sm"></div>
-                                    <Avatar
-                                        src={profilePic.src}
-                                        sx={{
-                                            position: "relative",
-                                            bgcolor: "#090E6B",
-                                            width: 44,
-                                            height: 44,
-                                            fontWeight: 600,
-                                            border: "2px solid white",
-                                            zIndex: 10,
-                                        }}
-                                    >
-                                        JD
-                                    </Avatar>
+                                    <Avatar src={profilePic.src} sx={{ width: 44, height: 44, border: "2px solid white", zIndex: 10 }}>JD</Avatar>
                                 </motion.div>
                                 <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
                                     <MoreVert fontSize="small" />
@@ -231,23 +249,15 @@ export default function DoctorChatDashboard() {
                                     }}
                                 >
                                     <MenuItem onClick={() => console.log("Profile clicked")}>
-                                        <ListItemIcon>
-                                            <FaUser style={{ color: "#4F46E5", minWidth: 20 }} />
-                                        </ListItemIcon>
+                                        <ListItemIcon><FaUser style={{ color: "#4F46E5", minWidth: 20 }} /></ListItemIcon>
                                         Profile
                                     </MenuItem>
-
                                     <MenuItem onClick={() => console.log("Settings clicked")}>
-                                        <ListItemIcon>
-                                            <FaCog style={{ color: "#F59E0B", minWidth: 20 }} />
-                                        </ListItemIcon>
+                                        <ListItemIcon><FaCog style={{ color: "#F59E0B", minWidth: 20 }} /></ListItemIcon>
                                         Settings
                                     </MenuItem>
-
                                     <MenuItem onClick={() => console.log("Logout clicked")}>
-                                        <ListItemIcon>
-                                            <FaSignOutAlt style={{ color: "#EF4444", minWidth: 20 }} />
-                                        </ListItemIcon>
+                                        <ListItemIcon><FaSignOutAlt style={{ color: "#EF4444", minWidth: 20 }} /></ListItemIcon>
                                         Logout
                                     </MenuItem>
                                 </Menu>
@@ -257,106 +267,99 @@ export default function DoctorChatDashboard() {
                 </AppBar>
             </div>
 
-            {/* Main Grid - 90% */}
+            {/* Main Grid */}
             <div className="h-[90%] p-2 grid grid-cols-12 gap-2">
                 {/* Left Sidebar */}
                 <div className="col-span-12 lg:col-span-3 h-full">
                     <div className="bg-white rounded-xl shadow flex flex-col h-full">
-                        {/* Search 10% */}
+                        {/* Search */}
                         <div className="h-[10%] p-2">
                             <Paper className="p-1 flex items-center h-full" elevation={0}>
                                 <IconButton size="small"><SearchIcon fontSize="small" /></IconButton>
-                                <InputBase
-                                    placeholder="Search..."
-                                    fullWidth
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    className="text-[11px]"
-                                />
+                                <InputBase placeholder="Search..." fullWidth value={search} onChange={(e) => setSearch(e.target.value)} className="text-[11px]" />
                             </Paper>
                         </div>
 
-                        {/* Cases 65% */}
+                        {/* Appointments */}
                         <div className="h-[55%] flex flex-col overflow-y-auto p-2">
-                            <h4 className="text-gray-600 text-xs font-semibold">
-                                Appointments
-                            </h4>
+                            <h4 className="text-gray-600 text-xs font-semibold">Appointments</h4>
                             <div className="mt-2 space-y-2">
-                                {patients.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || !search)
-                                    .map((p) => (
-                                        <motion.div
-                                            key={p.id}
-                                            whileHover={{ scale: 1.01 }}
-                                            whileTap={{ scale: 0.99 }}
-                                            onClick={() => setSelectedPatientId(p.id)}
-                                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${p.id === selectedPatientId ? "bg-slate-100" : "bg-gray-50"}`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-black font-bold text-[12px]">
-                                                    {p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}
+                                {activePatients.length === 0 ? (
+                                    <div className="text-gray-400 text-[11px] p-2">No active patients</div>
+                                ) : (
+                                    activePatients.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || !search)
+                                        .map((p) => (
+                                            <motion.div key={p.id} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                                                onClick={() => setSelectedPatientId(p.id)}
+                                                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${p.id === selectedPatientId ? "bg-slate-100" : "bg-gray-50"}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-black font-bold text-[12px]">
+                                                        {p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-[11px]">{p.name}</div>
+                                                        <div className="text-[10px] text-gray-500">{p.desc}</div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <div className="font-semibold text-[11px]">{p.name}</div>
-                                                    <div className="text-[10px] text-gray-500">{p.desc}</div>
-                                                </div>
-                                            </div>
-                                            <div className="text-[10px] text-gray-500">{p.scheduletime}</div>
-                                        </motion.div>
-                                    ))}
+                                                <div className="text-[10px] text-gray-500">{p.scheduletime}</div>
+                                            </motion.div>
+                                        ))
+                                )}
                             </div>
                         </div>
 
-                        {/* Glassy Separator */}
+                        {/* Separator */}
                         <div className="w-full h-1 my-2 rounded-full bg-white/20 backdrop-blur-sm shadow-sm"></div>
 
-                        {/* Previous History 25% */}
+                        {/* Previous History */}
                         <div className="h-[35%] flex flex-col overflow-y-auto p-2">
-                            <h4 className="text-gray-600 text-xs font-semibold">
-                                Previous History
-                            </h4>
+                            <h4 className="text-gray-600 text-xs font-semibold">Previous History</h4>
                             <div className="mt-2 space-y-2">
-                                {selectedPatient.previousCheckups.map((c, idx) => (
-                                    <motion.div
-                                        key={idx}
-                                        className="bg-gradient-to-tr from-white to-slate-50 p-2 rounded-lg shadow-sm"
-                                        whileHover={{ x: 4 }}
-                                    >
-                                        <div className="text-[11px] font-semibold">{c.desc}</div>
-                                        <div className="text-[10px] text-gray-500 mt-1">Next Appointment: {c.nextAppointment || "-"}</div>
-                                        <div className="flex items-center gap-1 mt-1">
-                                            <Chip label={`HR: ${c.vitals.HR} BPM`} size="small" />
-                                            <Chip label={`BP: ${c.vitals.BP}`} size="small" />
-                                            <Chip label={`Temp: ${c.vitals.Temp}`} size="small" />
-                                        </div>
-                                        <div className="text-[10px] text-gray-600 mt-1">{c.notes}</div>
-                                    </motion.div>
-                                ))}
+                                {selectedPatient.previousCheckups.length === 0 ? (
+                                    <div className="text-gray-400 text-[11px] p-2">No previous history</div>
+                                ) : (
+                                    selectedPatient.previousCheckups.map((c, idx) => (
+                                        <motion.div key={idx} className="bg-gradient-to-tr from-white to-slate-50 p-2 rounded-lg shadow-sm" whileHover={{ x: 4 }}>
+                                            <div className="text-[11px] font-semibold">{c.desc}</div>
+                                            <div className="text-[10px] text-gray-500 mt-1">Next Appointment: {c.nextAppointment || "-"}</div>
+                                            <div className="flex items-center gap-1 mt-1">
+                                                <Chip label={`HR: ${c.vitals.HR} BPM`} size="small" />
+                                                <Chip label={`BP: ${c.vitals.BP}`} size="small" />
+                                                <Chip label={`Temp: ${c.vitals.Temp}`} size="small" />
+                                            </div>
+                                            <div className="text-[10px] text-gray-600 mt-1">{c.notes}</div>
+                                        </motion.div>
+                                    ))
+                                )}
                             </div>
                         </div>
-
                     </div>
                 </div>
 
                 {/* Center Chat */}
                 <div className="col-span-12 lg:col-span-6 h-full">
                     <div className="bg-white rounded-xl shadow flex flex-col h-full">
+
                         {/* Chat Header */}
-                        <div className="border-b px-3 py-2 flex items-center justify-between">
+                        <div className="border-b border-gray-300 px-3 py-2 flex items-center justify-between flex-none">
                             <div className="flex items-center gap-2">
                                 <IconButton size="small" className="hidden lg:block"><ArrowBackIosNew fontSize="small" /></IconButton>
                                 <div className="flex items-center gap-2">
-                                    <Avatar alt={selectedPatient.name} src={`https://i.pravatar.cc/40?u=${selectedPatient.id}`} sx={{ width: 28, height: 28 }} />
+                                    <Avatar alt={selectedPatient.name} src={selectedPatient.id ? `https://i.pravatar.cc/40?u=${selectedPatient.id}` : ""} sx={{ width: 28, height: 28 }} />
                                     <div>
                                         <div className="font-semibold text-[11px]">{selectedPatient.name}</div>
                                         <div className="text-[10px] text-gray-500">{selectedPatient.desc}</div>
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-[10px] text-gray-600 font-semibold">{selectedPatient.mrn} · {selectedPatient.age} yrs, {selectedPatient.sex}</div>
+                            <div className="text-[10px] text-gray-600 font-semibold">
+                                {selectedPatient.mrn} · {selectedPatient.age} yrs, {selectedPatient.sex}
+                            </div>
                         </div>
 
                         {/* Chat Messages */}
-                        <div className="flex-1 p-3 overflow-auto relative space-y-2">
+                        <div className="flex-1 p-3 overflow-y-auto space-y-2">
                             {selectedPatient.messages.map((m, i) => {
                                 const isMe = m.sender === "You";
                                 return (
@@ -365,11 +368,19 @@ export default function DoctorChatDashboard() {
                                             initial={{ opacity: 0, y: 6 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             whileHover={{ scale: 1.01 }}
-                                            className={`rounded-xl px-3 py-2 max-w-[65%] font-semibold ${isMe ? "bg-indigo-200 text-gray-600" : "bg-gray-100 text-gray-800"}`}
+                                            className={`rounded-xl px-3 py-2 font-semibold max-w-[70%] max-h-32 overflow-y-auto ${isMe ? "bg-blue-200 text-gray-600" : "bg-gray-100 text-gray-800"}`}
                                         >
-                                            {!isMe && <div className="flex items-center gap-1 mb-1 text-[10px] text-gray-500"><span role="img">🤖</span> LifeCase · {m.time}</div>}
+                                            {!isMe && (
+                                                <div className="flex items-center gap-1 mb-1 text-[10px] text-blue-500">
+                                                    <span role="img">🤖</span> LifeEase Agent · {m.time}
+                                                </div>
+                                            )}
                                             <div className="text-[11px]">{m.text}</div>
-                                            {isMe && <div className="text-[9px] text-gray-300 mt-1 text-right">{m.time}</div>}
+                                            {isMe && (
+                                                <div className="text-[9px] text-black mt-1 text-right">
+                                                    <span role="img" aria-label="doctor" className="text-lg">👩‍⚕️</span>You · {m.time}
+                                                </div>
+                                            )}
                                         </motion.div>
                                     </div>
                                 );
@@ -377,64 +388,87 @@ export default function DoctorChatDashboard() {
                         </div>
 
                         {/* Chat Input */}
-                        <div className="border-t px-3 py-2 flex items-center gap-2">
-                            <input
-                                placeholder="Message..."
-                                className="flex-1 bg-gray-50 rounded-full px-3 py-2 text-[11px] outline-none"
-                                value={messageText}
-                                onChange={(e) => setMessageText(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter") onSendMessage(); }}
-                            />
-                            <IconButton size="small" color="primary" onClick={onSendMessage}><Send fontSize="small" /></IconButton>
+                        <div className="border-t border-gray-300 px-3 py-2 flex items-center gap-2 flex-none">
+                            <div className="relative flex-1">
+                                <textarea
+                                    value={messageText}
+                                    onChange={(e) => setMessageText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            onSendMessage();
+                                        }
+                                    }}
+                                    disabled={selectedPatient.id === 0}
+                                    rows={2}
+                                    className="w-full bg-gray-200 rounded-full px-3 py-2 text-[11px] outline-none resize-none min-h-[48px] max-h-[96px] overflow-y-auto"
+                                    onFocus={() => setIsFocused(true)}
+                                    onBlur={() => setIsFocused(false)}
+                                />
+                                {!messageText && !isFocused && (
+                                    <span className="absolute left-3 top-1/2 -translate-y-[70%] text-gray-400 text-[11px] pointer-events-none select-none">
+                                        Type a message...
+                                    </span>
+                                )}
+                            </div>
+                            <IconButton
+                                onClick={onSendMessage}
+                                sx={{
+                                    color: '#090E6B',
+                                    backgroundColor: 'white',
+                                    borderRadius: '50%',
+                                    width: 36,
+                                    height: 36,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    top: -2,
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(9,14,107,0.1)',
+                                        boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                                    },
+                                    '& svg': { fontSize: 18 },
+                                }}
+                                disabled={selectedPatient.id === 0}
+                            >
+                                <Send className="pl-1 pt-0.5" />
+                            </IconButton>
                         </div>
 
-                        <div className="flex items-center gap-2 px-8 py-2 flex-wrap">
+                        {/* Buttons */}
+                        <div className="flex items-center gap-2 px-8 py-2 flex-wrap flex-none">
                             {buttons.map((btn, i) => (
-                                <Button
-                                    key={i}
-                                    startIcon={btn.icon}
-                                    disableElevation
-                                    variant="contained"
+                                <Button key={i} startIcon={btn.icon} disableElevation variant="contained"
                                     sx={{
-                                        minWidth: "auto",
-                                        padding: "4px 12px",
-                                        fontSize: "12px",
-                                        borderRadius: "9999px",
-                                        textTransform: "none",
-                                        backgroundColor: "#f3f3f3",
-                                        color: "#4B5563",
-                                        "&:hover": {
-                                            backgroundColor: "#e5e5e5",
-                                        },
-                                    }}
-                                >
+                                        minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                        textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
+                                        "&:hover": { backgroundColor: "#e5e5e5" },
+                                    }}>
                                     {btn.label}
                                 </Button>
                             ))}
-
-                            {/* Record Button */}
-                            <Button
-                                startIcon={<FaMicrophone size={14} />}
-                                disableElevation
-                                variant="contained"
+                            <Button startIcon={<FaMicrophone size={14} />} disableElevation variant="contained"
                                 sx={{
-                                    minWidth: "auto",
-                                    padding: "4px 12px",
-                                    fontSize: "12px",
-                                    borderRadius: "9999px",
-                                    textTransform: "none",
-                                    backgroundColor: isRecording ? "#EF4444" : "#f3f3f3", // red if recording
-                                    color: isRecording ? "#fff" : "#4B5563",
-                                    "&:hover": {
-                                        backgroundColor: isRecording ? "#DC2626" : "#e5e5e5",
-                                    },
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: isRecording ? "#EF4444" : "#f3f3f3",
+                                    color: isRecording ? "#fff" : "#4B5563", "&:hover": { backgroundColor: isRecording ? "#DC2626" : "#e5e5e5" },
                                 }}
                                 onClick={() => setIsRecording(!isRecording)}
                             >
                                 {isRecording ? "Recording..." : "Record"}
                             </Button>
+                            <Button startIcon={<FaTimes size={14} />} disableElevation variant="contained"
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
+                                    "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                                onClick={handleClose} disabled={selectedPatient.id === 0}
+                            >
+                                Close
+                            </Button>
                         </div>
-
                     </div>
                 </div>
 
@@ -443,13 +477,13 @@ export default function DoctorChatDashboard() {
                     <div className="bg-white rounded-xl shadow p-3 flex flex-col h-full overflow-y-auto">
                         <div className="p-3 rounded-xl bg-white/20 backdrop-blur-md shadow-lg space-y-3">
                             {/* Patient Info */}
-                            <div className="flex justify-between items-start">
+                            <div className="flex items-start">
                                 <div>
                                     <div className="font-semibold text-[12px]">{selectedPatient.name}</div>
-                                    <div className="text-[10px] text-gray-400">{selectedPatient.mrn}</div>
+                                    <div className="text-[10px] text-gray-500">{selectedPatient.mrn}</div>
                                 </div>
-                                <div className="text-[10px] text-gray-400 text-right">
-                                    {selectedPatient.age} yrs, {selectedPatient.sex}
+                                <div className="ml-2 text-[10px] text-gray-500 text-right">
+                                    ({selectedPatient.age} yrs, {selectedPatient.sex})
                                 </div>
                             </div>
 
@@ -472,64 +506,53 @@ export default function DoctorChatDashboard() {
                             </div>
                         </div>
 
-
-                        {/* Glossy Card */}
+                        {/* Tabs */}
                         <div className="mt-2 p-3 rounded-xl bg-white/20 backdrop-blur-md shadow-lg">
-                            {/* Tabs Header */}
                             <div className="flex border-b border-gray-300">
                                 {["Vitals", "Labs", "Medications"].map((label, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setTabIndex(idx)}
-                                        className={`
-                                                    flex-1 text-[11px] font-semibold py-2
-                                                    ${tabIndex === idx ? "border-b-2 border-gray-500 text-gray-900" : "text-gray-500"}
-                                                    text-center
-                                                    `}
+                                    <button key={idx} onClick={() => setTabIndex(idx)}
+                                        className={`flex-1 text-[11px] font-semibold py-2 ${tabIndex === idx ? "border-b-2 border-gray-500 text-gray-900" : "text-gray-500"} text-center`}
                                     >
                                         {label}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Tabs Content */}
                             <div className="mt-3 space-y-3">
                                 {/* Vitals */}
                                 {tabIndex === 0 && (
                                     <div className="grid grid-cols-2 gap-2">
-                                        <VitalsCard title="HR" value={selectedPatient.vitals.HR} glossy />
-                                        <VitalsCard title="SPO2" value={selectedPatient.vitals.SpO2} glossy />
-                                        <VitalsCard title="BP" value={selectedPatient.vitals.BP} glossy />
-                                        <VitalsCard title="TEMP" value={selectedPatient.vitals.Temp} glossy />
+                                        {Object.entries(selectedPatient.vitals).map(([k, v], i) => (
+                                            <VitalsCard key={i} title={k.toUpperCase()} value={v} />
+                                        ))}
                                     </div>
                                 )}
 
                                 {/* Labs */}
                                 {tabIndex === 1 && (
                                     <div className="p-2 space-y-2 text-[11px]">
-                                        <div className="p-2 rounded-lg bg-white/30 backdrop-blur-sm shadow-sm">
-                                            <div className="font-medium">Glucose</div>
-                                            <div className="font-semibold mt-1">{selectedPatient.labs.glucose} mg/dL</div>
-                                        </div>
-                                        <div className="p-2 rounded-lg bg-white/30 backdrop-blur-sm shadow-sm">
-                                            <div className="font-medium">Cholesterol</div>
-                                            <div className="font-semibold mt-1">{selectedPatient.labs.cholesterol} mg/dL</div>
-                                        </div>
+                                        {Object.entries(selectedPatient.labs).map(([k, v], i) => (
+                                            <div key={i} className="p-2 rounded-lg bg-white/30 backdrop-blur-sm shadow-sm">
+                                                <div className="font-medium">{k.charAt(0).toUpperCase() + k.slice(1)}</div>
+                                                <div className="font-semibold mt-1">{v} {v !== "-" ? "mg/dL" : ""}</div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
 
                                 {/* Medications */}
                                 {tabIndex === 2 && (
                                     <div className="p-2 flex flex-col gap-2">
-                                        {selectedPatient.medications.map((m, i) => (
-                                            <div
-                                                key={i}
-                                                className="p-2 rounded-lg bg-white/30 backdrop-blur-sm shadow-sm text-[11px]"
-                                            >
-                                                <div className="font-medium">{m}</div>
-                                                <div className="text-[10px] text-gray-400">As prescribed</div>
-                                            </div>
-                                        ))}
+                                        {selectedPatient.medications.length === 0 ? (
+                                            <div className="text-gray-400 text-[11px]">No medications</div>
+                                        ) : (
+                                            selectedPatient.medications.map((m, i) => (
+                                                <div key={i} className="p-2 rounded-lg bg-white/30 backdrop-blur-sm shadow-sm text-[11px]">
+                                                    <div className="font-medium">{m}</div>
+                                                    <div className="text-[10px] text-gray-400">As prescribed</div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 )}
                             </div>
