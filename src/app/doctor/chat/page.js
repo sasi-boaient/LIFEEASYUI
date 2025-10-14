@@ -25,16 +25,19 @@ import {
     ArrowBackIosNew
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import profilePic from "../../../../public/assets/doctor.png";
-// import anitaPic from "../../../../public/assets/girl.jpg";
-// import raviPic from "../../../../public/assets/men.jpg";
-import logo from "../../../../public/assets/logo.jpg";
 import { FaUser, FaCog, FaSignOutAlt, FaMicrophone, FaXRay, FaEdit, FaTimes, FaUpload } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
+// import profilePic from "../../../../public/assets/doctor.png";
+// import logo from "../../../../public/assets/logo.jpg";
 import Image from "next/image";
-import mriImage from "../../../../public/assets/MRI.png";
-import xrayImage from "../../../../public/assets/Xray.png";
+// import mriImage from "../../../../public/assets/MRI.png";
+// import xrayImage from "../../../../public/assets/Xray.png";
 import { sampleData } from "./SampleData";
+
+const profilePic = "/assets/doctor.png";
+const logo = "/assets/logo.jpg";
+const mriImage = "/assets/MRI.png";
+const xrayImage = "/assets/Xray.png";
 
 // Default patient for empty state
 const defaultPatient = {
@@ -220,7 +223,7 @@ export default function DoctorChatDashboard() {
                 <AppBar position="sticky" color="transparent" elevation={0} className="backdrop-blur-sm h-full">
                     <Toolbar className="flex justify-between p-2 h-full">
                         <div className="flex items-center gap-2">
-                            <Avatar src={logo.src} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
+                            <Avatar src={logo} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
                             <div>
                                 <div className="font-semibold text-md text-blue-600">LifeEase Hospital</div>
                                 <div className="text-[12px] text-gray-400">Doctor Assistant AI</div>
@@ -234,7 +237,7 @@ export default function DoctorChatDashboard() {
                                 </div>
                                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
                                     <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 opacity-60 blur-sm"></div>
-                                    <Avatar src={profilePic.src} sx={{ width: 44, height: 44, border: "2px solid white", zIndex: 10 }}>JD</Avatar>
+                                    <Avatar src={profilePic} sx={{ width: 44, height: 44, border: "2px solid white", zIndex: 10 }}>JD</Avatar>
                                 </motion.div>
                                 <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
                                     <MoreVert fontSize="small" />
