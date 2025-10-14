@@ -44,7 +44,7 @@ const sampleData = {
             scheduletime: "11:30 AM",
             mrn: "MRN001",
             status: "Active",
-            avatar: anitaPic,
+            profilePic: anitaPic.src,
             age: 45,
             sex: "F",
             allergy: "Penicillin",
@@ -79,7 +79,7 @@ const sampleData = {
             sex: "M",
             allergy: "None",
             status: "Active",
-            avatar: raviPic,
+            profilePic: raviPic.src,
             condition: "Asthma",
             vitals: { HR: 82, SpO2: "95%", BP: "118/78", Temp: "98.9°F" },
             labs: { glucose: 110, cholesterol: 170 },
@@ -366,28 +366,33 @@ export default function DoctorChatDashboard() {
                                                 className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${p.id === selectedPatientId ? "bg-slate-100" : "bg-gray-50"}`}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <Avatar
-                                                        alt={p.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
-                                                        src={p.avatar}
+                                                    <Box
                                                         sx={{
+                                                            position: "relative",
                                                             width: 32,
                                                             height: 32,
                                                             borderRadius: "50%",
-                                                            position: "relative",
                                                             overflow: "hidden",
                                                             boxShadow: "0 4px 8px rgba(0,0,0,0.2)", // soft shadow
-                                                            "&::after": {
-                                                                content: '""',
+                                                        }}
+                                                    >
+                                                        <Avatar
+                                                            alt={p.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
+                                                            src={p.profilePic}
+                                                            sx={{ width: "100%", height: "100%" }}
+                                                        />
+                                                        <Box
+                                                            sx={{
                                                                 position: "absolute",
                                                                 top: 0,
                                                                 left: 0,
                                                                 width: "100%",
                                                                 height: "100%",
-                                                                borderRadius: "50%",
-                                                                background: "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 60%)"
-                                                            }
-                                                        }}
-                                                    />
+                                                                background: "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 60%)",
+                                                            }}
+                                                        />
+                                                    </Box>
+
 
                                                     <div>
                                                         <div className="font-semibold text-[12px]">{p.name}</div>
@@ -440,7 +445,7 @@ export default function DoctorChatDashboard() {
                                 <div className="flex items-center gap-2">
                                     <Avatar
                                         alt={selectedPatient.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
-                                        src={selectedPatient.avatar}
+                                        src={selectedPatient.profilePic}
                                         sx={{ width: 28, height: 28 }}
                                     />
                                     <div>
