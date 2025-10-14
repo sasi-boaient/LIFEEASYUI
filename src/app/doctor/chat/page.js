@@ -439,8 +439,8 @@ export default function DoctorChatDashboard() {
                                 <IconButton size="small" className="hidden lg:block"><ArrowBackIosNew fontSize="small" /></IconButton>
                                 <div className="flex items-center gap-2">
                                     <Avatar
-                                        alt={selectedPatient.name.split(" ").map(s => s[0]).slice(0, 2).join("")} // initials
-                                        src={selectedPatient.avatar} // actual image
+                                        alt={selectedPatient.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
+                                        src={selectedPatient.avatar}
                                         sx={{ width: 28, height: 28 }}
                                     />
                                     <div>
