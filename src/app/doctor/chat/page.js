@@ -430,7 +430,7 @@ export default function DoctorChatDashboard() {
                 </div>
 
                 {/* Center Chat */}
-                <div className="col-span-12 lg:col-span-6 h-full">
+                <div className="col-span-12 lg:col-span-6 h-[calc(100vh-75px)]">
                     <div className="bg-white rounded-xl shadow flex flex-col h-full">
 
                         {/* Chat Header */}
@@ -455,7 +455,7 @@ export default function DoctorChatDashboard() {
                         </div>
 
                         {/* Chat Messages */}
-                        <div className="flex-1 p-3 space-y-2">
+                        <div className="flex-1 p-3 space-y-2 overflow-y-auto">
                             {selectedPatient.messages.map((m, i) => {
                                 const isMe = m.sender === "You";
                                 return (
