@@ -26,14 +26,14 @@ import {
     ArrowBackIosNew
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import profilePic from "../../assets/doctor.png";
-import anitaPic from "../../assets/girl.jpg";
-import raviPic from "../../assets/men.jpg";
-import logo from "../../assets/logo.jpg";
+import profilePic from "../../../../public/assets/doctor.png";
+import anitaPic from "../../../../public/assets/girl.jpg";
+import raviPic from "../../../../public/assets/men.jpg";
+import logo from "../../../../public/assets/logo.jpg";
 import { FaUser, FaCog, FaSignOutAlt, FaMicrophone, FaXRay, FaEdit, FaTimes, FaUpload } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
-import mriImage from "../../assets/MRI.png";
-import xrayImage from "../../assets/Xray.png";
+import mriImage from "../../../../public/assets/MRI.png";
+import xrayImage from "../../../../public/assets/Xray.png";
 
 const sampleData = {
     patients: [
