@@ -32,6 +32,7 @@ import raviPic from "../../../../public/assets/men.jpg";
 import logo from "../../../../public/assets/logo.jpg";
 import { FaUser, FaCog, FaSignOutAlt, FaMicrophone, FaXRay, FaEdit, FaTimes, FaUpload } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
+import Image from "next/image";
 import mriImage from "../../../../public/assets/MRI.png";
 import xrayImage from "../../../../public/assets/Xray.png";
 
@@ -726,84 +727,39 @@ export default function DoctorChatDashboard() {
                 </div>
             </div>
 
-            <Dialog
-                open={openMRI}
-                onClose={handleCloseMRI}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        bgcolor: "rgba(255,255,255,0.95)",
-                        backdropFilter: "blur(12px)",
-                        boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-                        p: 2,
-                    },
-                }}
-            >
-                <DialogTitle sx={{ fontWeight: 600, fontSize: "14px", padding: "2px", color: "#111827" }}>
-                    MRI Results
-                </DialogTitle>
-                <DialogContent dividers sx={{ p: 1 }}>
+            <Dialog open={openMRI} onClose={handleCloseMRI} fullWidth maxWidth="sm">
+                <DialogTitle>MRI Results</DialogTitle>
+                <DialogContent dividers>
                     <Box sx={{ display: "flex", justifyContent: "center" }}>
-                        <img src={mriImage.src} alt="MRI" style={{ maxWidth: "100%", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
+                        <Image
+                            src={mriImage}
+                            alt="MRI"
+                            style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                            width={400} // set proper width
+                            height={300} // set proper height
+                        />
                     </Box>
-
                 </DialogContent>
-                <DialogActions sx={{ px: 2, pb: 2 }}>
-                    <Button
-                        onClick={handleCloseMRI}
-                        variant="outlined"
-                        sx={{
-                            textTransform: "none",
-                            borderRadius: "9999px",
-                            color: "#4B5563",
-                            borderColor: "#E5E7EB",
-                            "&:hover": { backgroundColor: "#F3F4F6" },
-                        }}
-                    >
-                        Close
-                    </Button>
+                <DialogActions>
+                    <Button onClick={handleCloseMRI}>Close</Button>
                 </DialogActions>
             </Dialog>
 
-            <Dialog
-                open={openXRay}
-                onClose={handleCloseXRay}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        bgcolor: "rgba(255,255,255,0.95)",
-                        backdropFilter: "blur(12px)",
-                        boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-                        p: 2,
-                    },
-                }}
-            >
-                <DialogTitle sx={{ fontWeight: 600, fontSize: "14px", padding: "2px", color: "#111827" }}>
-                    X-Ray Details
-                </DialogTitle>
+            <Dialog open={openXRay} onClose={handleCloseXRay} fullWidth maxWidth="sm">
+                <DialogTitle>X-Ray Details</DialogTitle>
                 <DialogContent dividers>
                     <Box sx={{ display: "flex", justifyContent: "center" }}>
-                        <img src={xrayImage.src} alt="X-Ray" style={{ maxWidth: "100%", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
+                        <Image
+                            src={xrayImage}
+                            alt="X-Ray"
+                            style={{ borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                            width={400}
+                            height={300}
+                        />
                     </Box>
                 </DialogContent>
-                <DialogActions sx={{ px: 2, pb: 2 }}>
-                    <Button
-                        onClick={handleCloseXRay}
-                        variant="outlined"
-                        sx={{
-                            textTransform: "none",
-                            borderRadius: "9999px",
-                            color: "#4B5563",
-                            borderColor: "#E5E7EB",
-                            "&:hover": { backgroundColor: "#F3F4F6" },
-                        }}
-                    >
-                        Close
-                    </Button>
+                <DialogActions>
+                    <Button onClick={handleCloseXRay}>Close</Button>
                 </DialogActions>
             </Dialog>
 
