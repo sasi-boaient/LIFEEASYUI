@@ -216,6 +216,48 @@ export default function DoctorChatDashboard() {
             fileInputRef.current.click(); // open file picker
         }
     };
+
+    const [mediaRecorder, setMediaRecorder] = useState(null);
+
+    const handleMicClick = () => {
+        if (!isRecording) {
+            // Start recording
+            setIsRecording(true);
+
+            // Add "Translating..." message immediately
+            const typingMessage = {
+                sender: "chatagent",
+                text: "Translating...",
+                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                date: new Date().toISOString().split("T")[0],
+                typing: true
+            };
+            selectedPatient.messages.push(typingMessage);
+            setPatients([...patients]);
+
+            // Simulate backend translation after 3 seconds
+            setTimeout(() => {
+                // Remove typing message
+                selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+
+                // Add failed message
+                selectedPatient.messages.push({
+                    sender: "chatagent",
+                    text: "Failed to translate audio.",
+                    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    date: new Date().toISOString().split("T")[0],
+                });
+                setPatients([...patients]);
+                setIsRecording(false);
+            }, 3000);
+        } else {
+            // Stop recording early if needed
+            setIsRecording(false);
+            // You could optionally remove "Translating..." immediately on stop
+        }
+    };
+
+
     return (
         <div className="h-screen flex flex-col bg-gray-100 text-gray-800 text-sm">
             {/* AppBar */}
@@ -554,10 +596,12 @@ export default function DoctorChatDashboard() {
                                     textTransform: "none", backgroundColor: isRecording ? "#EF4444" : "#f3f3f3",
                                     color: isRecording ? "#fff" : "#4B5563", "&:hover": { backgroundColor: isRecording ? "#DC2626" : "#e5e5e5" },
                                 }}
-                                onClick={() => setIsRecording(!isRecording)}
+                                // onClick={() => setIsRecording(!isRecording)}
+                                onClick={handleMicClick}
                             >
                                 {isRecording ? "Recording..." : "Record"}
                             </Button>
+
                             <Button startIcon={<FaTimes size={14} />} disableElevation variant="contained"
                                 sx={{
                                     minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
