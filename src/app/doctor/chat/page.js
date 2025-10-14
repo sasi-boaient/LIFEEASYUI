@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import {
     AppBar,
     Toolbar,
@@ -11,7 +11,13 @@ import {
     InputBase,
     Chip,
     Button,
-    ListItemIcon
+    ListItemIcon,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Typography,
+    Box
 } from "@mui/material";
 import {
     Search as SearchIcon,
@@ -21,9 +27,13 @@ import {
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import profilePic from "../../assests/doctor.png";
+import anitaPic from "../../assests/girl.jpg";
+import raviPic from "../../assests/men.jpg";
 import logo from "../../assests/logo.jpg";
-import { FaUser, FaCog, FaSignOutAlt, FaHeartbeat, FaMicrophone, FaXRay, FaEdit, FaTimes } from "react-icons/fa";
+import { FaUser, FaCog, FaSignOutAlt, FaMicrophone, FaXRay, FaEdit, FaTimes, FaUpload } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
+import mriImage from "../../assests/MRI.png";
+import xrayImage from "../../assests/Xray.png";
 
 const sampleData = {
     patients: [
@@ -34,6 +44,7 @@ const sampleData = {
             scheduletime: "11:30 AM",
             mrn: "MRN001",
             status: "Active",
+            avatar: anitaPic.src,
             age: 45,
             sex: "F",
             allergy: "Penicillin",
@@ -43,7 +54,7 @@ const sampleData = {
             medications: ["Metformin", "Amlodipine"],
             messages: [
                 { sender: "chatagent", text: "Hello Doctor, I've loaded Anita's case. Try /soap/labs/ or ask me to summarize triage?", time: "08:10 AM", date: "2025-10-13" },
-                { sender: "You", text: "/soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
+                { sender: "You", text: "soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
                 { sender: "chatagent", text: "Drafting a SOAP template. I will surface risk flags and suggested orders online", time: "08:15 AM", date: "2025-10-13" },
             ],
             previousCheckups: [
@@ -54,7 +65,7 @@ const sampleData = {
                     medications: ["Metformin", "Amlodipine"],
                     notes: "Stable condition, advised diet control.",
                     desc: "Routine diabetic checkup.",
-                    nextAppointment: "2025-10-20",
+                    lastAppointment: "2025-09-20",
                 },
             ],
         },
@@ -68,13 +79,14 @@ const sampleData = {
             sex: "M",
             allergy: "None",
             status: "Active",
+            avatar: raviPic.src,
             condition: "Asthma",
             vitals: { HR: 82, SpO2: "95%", BP: "118/78", Temp: "98.9°F" },
             labs: { glucose: 110, cholesterol: 170 },
             medications: ["Salbutamol"],
             messages: [
                 { sender: "chatagent", text: "Hello Doctor, I've loaded Ravi's case. Try /soap/labs/ or ask me to summarize triage?", time: "08:10 AM", date: "2025-10-13" },
-                { sender: "You", text: "/soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
+                { sender: "You", text: "soap create with red flags", time: "08:12 AM", date: "2025-10-13" },
                 { sender: "chatagent", text: "Drafting a SOAP template. I will surface risk flags and suggested orders online", time: "08:15 AM", date: "2025-10-13" },
             ],
             previousCheckups: [
@@ -84,6 +96,8 @@ const sampleData = {
                     labs: { glucose: 108, cholesterol: 165 },
                     medications: ["Salbutamol"],
                     notes: "Stable, continue current meds.",
+                    desc: "Routine checkup.",
+                    lastAppointment: "2025-09-10",
                 },
             ],
         },
@@ -108,11 +122,6 @@ const defaultPatient = {
     ],
     previousCheckups: [],
 };
-
-/* ---------- Helper components ---------- */
-const SmallLabel = ({ children }) => (
-    <div className="text-xs text-gray-500 uppercase tracking-wide">{children}</div>
-);
 
 const VitalsCard = ({ title, value }) => (
     <div className="bg-white rounded-lg shadow-sm p-3 min-w-[120px] flex flex-col items-center">
@@ -201,14 +210,77 @@ export default function DoctorChatDashboard() {
         setSearch((s) => s + ""); // Trigger re-render
     };
 
+    const [openMRI, setOpenMRI] = useState(false);
+    const [openXRay, setOpenXRay] = useState(false);
 
-    const buttons = [
-        { icon: <MdMedicalServices size={14} />, label: "MRI" },
-        { icon: <FaXRay size={14} />, label: "X-Ray" },
-        { icon: <FaHeartbeat size={14} />, label: "Vitals" },
-        { icon: <FaEdit size={14} />, label: "Edit Summary" },
-    ];
+    const handleCloseMRI = () => setOpenMRI(false);
 
+    const handleCloseXRay = () => setOpenXRay(false);
+
+    const [isTyping, setIsTyping] = useState(false);
+
+    // Reference to hidden file input
+    const fileInputRef = useRef(null);
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file || selectedPatient.id === 0) return;
+
+        // Add typing message
+        const typingMessage = {
+            sender: "chatagent",
+            text: "Translating audio...",
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            date: new Date().toISOString().split("T")[0],
+            typing: true
+        };
+
+        selectedPatient.messages.push(typingMessage);
+        setPatients([...patients]);
+        setIsTyping(true);
+
+        const formData = new FormData();
+        formData.append("audio", file);
+
+        try {
+            const response = await fetch("YOUR_API_URL_HERE", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await response.json(); // API returns { translatedText: "..." }
+
+            // Remove typing message
+            selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+
+            // Add translated text
+            selectedPatient.messages.push({
+                sender: "chatagent",
+                text: data.translatedText || "No translation available",
+                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                date: new Date().toISOString().split("T")[0],
+            });
+
+            setPatients([...patients]);
+        } catch (err) {
+            console.error(err);
+            selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+            selectedPatient.messages.push({
+                sender: "chatagent",
+                text: "Failed to translate audio.",
+                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                date: new Date().toISOString().split("T")[0],
+            });
+            setPatients([...patients]);
+        } finally {
+            setIsTyping(false);
+        }
+    };
+
+    const handleUploadClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click(); // open file picker
+        }
+    };
     return (
         <div className="h-screen flex flex-col bg-gray-100 text-gray-800 text-sm">
             {/* AppBar */}
@@ -218,15 +290,15 @@ export default function DoctorChatDashboard() {
                         <div className="flex items-center gap-2">
                             <Avatar src={logo.src} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
                             <div>
-                                <div className="font-semibold text-sm text-blue-600">LifeEase Hospital</div>
-                                <div className="text-[10px] text-gray-400">Doctor Assistant AI</div>
+                                <div className="font-semibold text-md text-blue-600">LifeEase Hospital</div>
+                                <div className="text-[12px] text-gray-400">Doctor Assistant AI</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2">
                                 <div className="text-right hidden sm:block">
-                                    <div className="font-medium text-[11px]">Dr. John Doe</div>
-                                    <div className="text-[10px] text-gray-400">Cardiologist</div>
+                                    <div className="font-semibold text-[12px]">Dr. John Doe</div>
+                                    <div className="text-[11px] text-gray-400">Cardiologist</div>
                                 </div>
                                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="relative">
                                     <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 opacity-60 blur-sm"></div>
@@ -282,10 +354,10 @@ export default function DoctorChatDashboard() {
 
                         {/* Appointments */}
                         <div className="h-[55%] flex flex-col overflow-y-auto p-2">
-                            <h4 className="text-gray-600 text-xs font-semibold">Appointments</h4>
+                            <h4 className="text-gray-600 text-sm font-semibold">Appointments</h4>
                             <div className="mt-2 space-y-2">
                                 {activePatients.length === 0 ? (
-                                    <div className="text-gray-400 text-[11px] p-2">No active patients</div>
+                                    <div className="text-gray-400 text-[12px] p-2">No active patients</div>
                                 ) : (
                                     activePatients.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || !search)
                                         .map((p) => (
@@ -294,15 +366,35 @@ export default function DoctorChatDashboard() {
                                                 className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${p.id === selectedPatientId ? "bg-slate-100" : "bg-gray-50"}`}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-black font-bold text-[12px]">
-                                                        {p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}
-                                                    </div>
+                                                    <Avatar
+                                                        alt={p.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
+                                                        src={p.avatar}
+                                                        sx={{
+                                                            width: 32,
+                                                            height: 32,
+                                                            borderRadius: "50%",
+                                                            position: "relative",
+                                                            overflow: "hidden",
+                                                            boxShadow: "0 4px 8px rgba(0,0,0,0.2)", // soft shadow
+                                                            "&::after": {
+                                                                content: '""',
+                                                                position: "absolute",
+                                                                top: 0,
+                                                                left: 0,
+                                                                width: "100%",
+                                                                height: "100%",
+                                                                borderRadius: "50%",
+                                                                background: "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 60%)"
+                                                            }
+                                                        }}
+                                                    />
+
                                                     <div>
-                                                        <div className="font-semibold text-[11px]">{p.name}</div>
-                                                        <div className="text-[10px] text-gray-500">{p.desc}</div>
+                                                        <div className="font-semibold text-[12px]">{p.name}</div>
+                                                        <div className="text-[11px] text-gray-500">{p.desc}</div>
                                                     </div>
                                                 </div>
-                                                <div className="text-[10px] text-gray-500">{p.scheduletime}</div>
+                                                <div className="text-[11px] text-gray-500">{p.scheduletime}</div>
                                             </motion.div>
                                         ))
                                 )}
@@ -314,21 +406,21 @@ export default function DoctorChatDashboard() {
 
                         {/* Previous History */}
                         <div className="h-[35%] flex flex-col overflow-y-auto p-2">
-                            <h4 className="text-gray-600 text-xs font-semibold">Previous History</h4>
+                            <h4 className="text-gray-600 text-sm font-semibold">Previous History</h4>
                             <div className="mt-2 space-y-2">
                                 {selectedPatient.previousCheckups.length === 0 ? (
-                                    <div className="text-gray-400 text-[11px] p-2">No previous history</div>
+                                    <div className="text-gray-400 text-[12px] p-2">No previous history</div>
                                 ) : (
                                     selectedPatient.previousCheckups.map((c, idx) => (
                                         <motion.div key={idx} className="bg-gradient-to-tr from-white to-slate-50 p-2 rounded-lg shadow-sm" whileHover={{ x: 4 }}>
-                                            <div className="text-[11px] font-semibold">{c.desc}</div>
-                                            <div className="text-[10px] text-gray-500 mt-1">Next Appointment: {c.nextAppointment || "-"}</div>
+                                            <div className="text-[12px] font-semibold">{c.desc}</div>
+                                            <div className="text-[11px] text-gray-500 mt-1">Last Appointment: {c.lastAppointment || "-"}</div>
                                             <div className="flex items-center gap-1 mt-1">
                                                 <Chip label={`HR: ${c.vitals.HR} BPM`} size="small" />
                                                 <Chip label={`BP: ${c.vitals.BP}`} size="small" />
                                                 <Chip label={`Temp: ${c.vitals.Temp}`} size="small" />
                                             </div>
-                                            <div className="text-[10px] text-gray-600 mt-1">{c.notes}</div>
+                                            <div className="text-[11px] text-gray-600 mt-1">{c.notes}</div>
                                         </motion.div>
                                     ))
                                 )}
@@ -346,20 +438,24 @@ export default function DoctorChatDashboard() {
                             <div className="flex items-center gap-2">
                                 <IconButton size="small" className="hidden lg:block"><ArrowBackIosNew fontSize="small" /></IconButton>
                                 <div className="flex items-center gap-2">
-                                    <Avatar alt={selectedPatient.name} src={selectedPatient.id ? `https://i.pravatar.cc/40?u=${selectedPatient.id}` : ""} sx={{ width: 28, height: 28 }} />
+                                    <Avatar
+                                        alt={selectedPatient.name.split(" ").map(s => s[0]).slice(0, 2).join("")} // initials
+                                        src={selectedPatient.avatar} // actual image
+                                        sx={{ width: 28, height: 28 }}
+                                    />
                                     <div>
-                                        <div className="font-semibold text-[11px]">{selectedPatient.name}</div>
-                                        <div className="text-[10px] text-gray-500">{selectedPatient.desc}</div>
+                                        <div className="font-semibold text-[12px]">{selectedPatient.name}</div>
+                                        <div className="text-[11px] text-gray-500">{selectedPatient.desc}</div>
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-[10px] text-gray-600 font-semibold">
+                            <div className="text-[11px] text-gray-600 font-semibold">
                                 {selectedPatient.mrn} · {selectedPatient.age} yrs, {selectedPatient.sex}
                             </div>
                         </div>
 
                         {/* Chat Messages */}
-                        <div className="flex-1 p-3 overflow-y-auto space-y-2">
+                        <div className="flex-1 p-3 space-y-2">
                             {selectedPatient.messages.map((m, i) => {
                                 const isMe = m.sender === "You";
                                 return (
@@ -371,13 +467,13 @@ export default function DoctorChatDashboard() {
                                             className={`rounded-xl px-3 py-2 font-semibold max-w-[70%] max-h-32 overflow-y-auto ${isMe ? "bg-blue-200 text-gray-600" : "bg-gray-100 text-gray-800"}`}
                                         >
                                             {!isMe && (
-                                                <div className="flex items-center gap-1 mb-1 text-[10px] text-blue-500">
+                                                <div className="flex items-center gap-1 mb-1 text-[11px] text-blue-500">
                                                     <span role="img">🤖</span> LifeEase Agent · {m.time}
                                                 </div>
                                             )}
-                                            <div className="text-[11px]">{m.text}</div>
+                                            <div className="text-[12px]">{m.text}</div>
                                             {isMe && (
-                                                <div className="text-[9px] text-black mt-1 text-right">
+                                                <div className="text-[10px] text-black mt-1 text-right">
                                                     <span role="img" aria-label="doctor" className="text-lg">👩‍⚕️</span>You · {m.time}
                                                 </div>
                                             )}
@@ -401,12 +497,12 @@ export default function DoctorChatDashboard() {
                                     }}
                                     disabled={selectedPatient.id === 0}
                                     rows={2}
-                                    className="w-full bg-gray-200 rounded-full px-3 py-2 text-[11px] outline-none resize-none min-h-[48px] max-h-[96px] overflow-y-auto"
+                                    className="w-full bg-gray-200 rounded-full px-3 py-2 text-[12px] outline-none resize-none min-h-[48px] max-h-[96px] overflow-y-auto"
                                     onFocus={() => setIsFocused(true)}
                                     onBlur={() => setIsFocused(false)}
                                 />
                                 {!messageText && !isFocused && (
-                                    <span className="absolute left-3 top-1/2 -translate-y-[70%] text-gray-400 text-[11px] pointer-events-none select-none">
+                                    <span className="absolute left-3 top-1/2 -translate-y-[70%] text-gray-400 text-[12px] pointer-events-none select-none">
                                         Type a message...
                                     </span>
                                 )}
@@ -438,19 +534,83 @@ export default function DoctorChatDashboard() {
 
                         {/* Buttons */}
                         <div className="flex items-center gap-2 px-8 py-2 flex-wrap flex-none">
-                            {buttons.map((btn, i) => (
-                                <Button key={i} startIcon={btn.icon} disableElevation variant="contained"
-                                    sx={{
-                                        minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
-                                        textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
-                                        "&:hover": { backgroundColor: "#e5e5e5" },
-                                    }}>
-                                    {btn.label}
-                                </Button>
-                            ))}
+                            <Button
+                                startIcon={<MdMedicalServices size={14} />}
+                                disableElevation
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3",
+                                    color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                                variant="contained"
+                                onClick={() => {
+                                    console.log("MRI button clicked!");
+                                    setOpenMRI(true);
+                                }}
+                            >
+                                MRI
+                            </Button>
+
+                            <Button
+                                startIcon={<FaXRay size={14} />}
+                                disableElevation
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3",
+                                    color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                                variant="contained"
+                                onClick={() => {
+                                    console.log("X-Ray button clicked!");
+                                    setOpenXRay(true);
+                                }}
+                            >
+                                X-Ray
+                            </Button>
+
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                accept="audio/*"
+                                style={{ display: "none" }}
+                                onChange={handleFileChange}
+                            />
+
+                            <Button
+                                startIcon={<FaUpload size={14} />}
+                                disableElevation
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3",
+                                    color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                                variant="contained"
+                                onClick={() => {
+                                    handleUploadClick();
+                                }}
+                            >
+                                Upload
+                            </Button>
+
+                            <Button
+                                startIcon={<FaEdit size={14} />}
+                                disableElevation
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3",
+                                    color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                                variant="contained"
+                                onClick={() => {
+                                    console.log("Edit button clicked!");
+                                }}
+                            >
+                                Edit
+                            </Button>
+
                             <Button startIcon={<FaMicrophone size={14} />} disableElevation variant="contained"
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: isRecording ? "#EF4444" : "#f3f3f3",
                                     color: isRecording ? "#fff" : "#4B5563", "&:hover": { backgroundColor: isRecording ? "#DC2626" : "#e5e5e5" },
                                 }}
@@ -460,7 +620,7 @@ export default function DoctorChatDashboard() {
                             </Button>
                             <Button startIcon={<FaTimes size={14} />} disableElevation variant="contained"
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
                                     "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
@@ -479,17 +639,17 @@ export default function DoctorChatDashboard() {
                             {/* Patient Info */}
                             <div className="flex items-start">
                                 <div>
-                                    <div className="font-semibold text-[12px]">{selectedPatient.name}</div>
-                                    <div className="text-[10px] text-gray-500">{selectedPatient.mrn}</div>
+                                    <div className="font-semibold text-[13px]">{selectedPatient.name}</div>
+                                    <div className="text-[11px] text-gray-500 font-semibold">{selectedPatient.mrn}</div>
                                 </div>
-                                <div className="ml-2 text-[10px] text-gray-500 text-right">
+                                <div className="ml-2 text-[12px] text-gray-500 text-right">
                                     ({selectedPatient.age} yrs, {selectedPatient.sex})
                                 </div>
                             </div>
 
                             {/* Allergies */}
                             <div>
-                                <SmallLabel>Allergies</SmallLabel>
+                                <span className="text-[12px] font-semibold text-gray-500">Allergies</span>
                                 <div className="mt-1">
                                     <Chip label={selectedPatient.allergy} size="small" />
                                 </div>
@@ -497,7 +657,7 @@ export default function DoctorChatDashboard() {
 
                             {/* Conditions */}
                             <div>
-                                <SmallLabel>Conditions</SmallLabel>
+                                <span className="text-[12px] font-semibold text-gray-500">Conditions</span>
                                 <div className="mt-1 flex gap-1">
                                     {selectedPatient.condition.split(",").map((c, i) => (
                                         <Chip key={i} label={c.trim()} size="small" />
@@ -511,7 +671,7 @@ export default function DoctorChatDashboard() {
                             <div className="flex border-b border-gray-300">
                                 {["Vitals", "Labs", "Medications"].map((label, idx) => (
                                     <button key={idx} onClick={() => setTabIndex(idx)}
-                                        className={`flex-1 text-[11px] font-semibold py-2 ${tabIndex === idx ? "border-b-2 border-gray-500 text-gray-900" : "text-gray-500"} text-center`}
+                                        className={`flex-1 text-[13px] font-semibold py-2 ${tabIndex === idx ? "border-b-2 border-gray-500 text-gray-900" : "text-gray-500"} text-center`}
                                     >
                                         {label}
                                     </button>
@@ -560,6 +720,88 @@ export default function DoctorChatDashboard() {
                     </div>
                 </div>
             </div>
+
+            <Dialog
+                open={openMRI}
+                onClose={handleCloseMRI}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        bgcolor: "rgba(255,255,255,0.95)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+                        p: 2,
+                    },
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 600, fontSize: "14px", padding: "2px", color: "#111827" }}>
+                    MRI Results
+                </DialogTitle>
+                <DialogContent dividers sx={{ p: 1 }}>
+                    <Box sx={{ display: "flex", justifyContent: "center" }}>
+                        <img src={mriImage.src} alt="MRI" style={{ maxWidth: "100%", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
+                    </Box>
+
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 2 }}>
+                    <Button
+                        onClick={handleCloseMRI}
+                        variant="outlined"
+                        sx={{
+                            textTransform: "none",
+                            borderRadius: "9999px",
+                            color: "#4B5563",
+                            borderColor: "#E5E7EB",
+                            "&:hover": { backgroundColor: "#F3F4F6" },
+                        }}
+                    >
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={openXRay}
+                onClose={handleCloseXRay}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        bgcolor: "rgba(255,255,255,0.95)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
+                        p: 2,
+                    },
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 600, fontSize: "14px", padding: "2px", color: "#111827" }}>
+                    X-Ray Details
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ display: "flex", justifyContent: "center" }}>
+                        <img src={xrayImage.src} alt="X-Ray" style={{ maxWidth: "100%", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} />
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 2 }}>
+                    <Button
+                        onClick={handleCloseXRay}
+                        variant="outlined"
+                        sx={{
+                            textTransform: "none",
+                            borderRadius: "9999px",
+                            color: "#4B5563",
+                            borderColor: "#E5E7EB",
+                            "&:hover": { backgroundColor: "#F3F4F6" },
+                        }}
+                    >
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
         </div>
     );
 }
