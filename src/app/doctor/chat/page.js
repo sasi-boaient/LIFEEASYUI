@@ -520,7 +520,7 @@ export default function DoctorChatDashboard() {
                         </div>
 
                         {/* Buttons */}
-                        <div className="flex items-center gap-2 px-4 py-2 flex-nowrap overflow-x-auto">
+                        <div className="flex items-center gap-2 px-4 py-2 flex-nowrap overflow-x-auto w-full">
                             <Button
                                 startIcon={<MdMedicalServices size={14} />}
                                 disableElevation
@@ -543,7 +543,7 @@ export default function DoctorChatDashboard() {
                                 disableElevation
                                 sx={{
                                     minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
-                                    textTransform: "none", backgroundColor: "#f3f3f3",
+                                    textTransform: "none", whiteSpace: "nowrap", backgroundColor: "#f3f3f3",
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
                                 variant="contained"
