@@ -272,7 +272,7 @@ export default function DoctorChatDashboard() {
                             <Avatar src={logo} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
                             <div>
                                 <div className="text-lg font-semibold text-[#386ec0] hover:text-[#2a5dab] transition-colors duration-300">LifeEase</div>
-                                <div className="text-[12px] text-blue-600">Doctor's Virtual Assistant</div>
+                                <div className="text-[13px] text-[#0c10fc]">Doctor's Virtual Assistant</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
