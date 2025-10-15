@@ -154,6 +154,8 @@ export default function DoctorChatDashboard() {
 
     const [isTyping, setIsTyping] = useState(false);
 
+    const TRANSLATE_AUDIO_API_URL = "http://10.0.166.108:8000/translate_audio/";
+
     // Reference to hidden file input
     const fileInputRef = useRef(null);
 
@@ -161,7 +163,6 @@ export default function DoctorChatDashboard() {
         const file = e.target.files[0];
         if (!file || selectedPatient.id === 0) return;
 
-        // Add typing message
         const typingMessage = {
             sender: "chatagent",
             text: "Translating audio...",
@@ -175,27 +176,32 @@ export default function DoctorChatDashboard() {
         setIsTyping(true);
 
         const formData = new FormData();
-        formData.append("audio", file);
+        formData.append("file", file); // must match FastAPI param
+
+        console.log("API URL:", TRANSLATE_AUDIO_API_URL);
+
+        for (let [key, value] of formData.entries()) {
+            console.log(`FormData - ${key}:`, value);
+        }
 
         try {
-            const response = await fetch("YOUR_API_URL_HERE", {
+            const response = await fetch(TRANSLATE_AUDIO_API_URL, {
                 method: "POST",
                 body: formData,
             });
-            const data = await response.json(); // API returns { translatedText: "..." }
+            const data = await response.json();
+            console.log('data', data);
 
-            // Remove typing message
-            selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+            // selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
 
-            // Add translated text
-            selectedPatient.messages.push({
-                sender: "chatagent",
-                text: data.translatedText || "No translation available",
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                date: new Date().toISOString().split("T")[0],
-            });
+            // selectedPatient.messages.push({
+            //     sender: "chatagent",
+            //     text: data.translated_text || "No translation available",
+            //     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            //     date: new Date().toISOString().split("T")[0],
+            // });
 
-            setPatients([...patients]);
+            // setPatients([...patients]);
         } catch (err) {
             console.error(err);
             selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
@@ -211,13 +217,12 @@ export default function DoctorChatDashboard() {
         }
     };
 
+
     const handleUploadClick = () => {
         if (fileInputRef.current) {
             fileInputRef.current.click(); // open file picker
         }
     };
-
-    const [mediaRecorder, setMediaRecorder] = useState(null);
 
     const handleMicClick = () => {
         if (!isRecording) {
@@ -257,7 +262,6 @@ export default function DoctorChatDashboard() {
         }
     };
 
-
     return (
         <div className="h-screen flex flex-col bg-gray-100 text-gray-800 text-sm">
             {/* AppBar */}
@@ -266,9 +270,8 @@ export default function DoctorChatDashboard() {
                     <Toolbar className="flex justify-between p-2 h-full">
                         <div className="flex items-center gap-2">
                             <Avatar src={logo} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
-                            <div>
-                                <div className="font-semibold text-md text-blue-600">LifeEase Hospital</div>
-                                <div className="text-[12px] text-gray-400">Doctor Assistant AI</div>
+                            <div className="text-lg font-semibold bg-gradient-to-r from-sky-600 to-green-700 bg-clip-text text-transparent hover:from-sky-700 hover:to-green-800 transition-all duration-500">
+                                LifeEase
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
