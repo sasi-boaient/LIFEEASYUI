@@ -270,8 +270,9 @@ export default function DoctorChatDashboard() {
                     <Toolbar className="flex justify-between p-2 h-full">
                         <div className="flex items-center gap-2">
                             <Avatar src={logo} sx={{ width: 44, height: 44, fontWeight: 600, zIndex: 10, padding: "1px" }}>LE</Avatar>
-                            <div className="text-lg font-semibold bg-gradient-to-r from-sky-600 to-green-700 bg-clip-text text-transparent hover:from-sky-700 hover:to-green-800 transition-all duration-500">
-                                LifeEase
+                            <div>
+                                <div className="text-lg font-semibold text-[#386ec0] hover:text-[#2a5dab] transition-colors duration-300">LifeEase</div>
+                                <div className="text-[12px] text-blue-600">Doctor's Virtual Assistant</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
