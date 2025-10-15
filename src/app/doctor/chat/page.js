@@ -27,6 +27,7 @@ import {
 import { motion } from "framer-motion";
 import { FaUser, FaCog, FaSignOutAlt, FaMicrophone, FaXRay, FaEdit, FaTimes, FaUpload } from "react-icons/fa";
 import { MdMedicalServices } from "react-icons/md";
+import { SiTicktick } from "react-icons/si";
 // import profilePic from "../../../../public/assets/doctor.png";
 // import logo from "../../../../public/assets/logo.jpg";
 import Image from "next/image";
@@ -519,12 +520,12 @@ export default function DoctorChatDashboard() {
                         </div>
 
                         {/* Buttons */}
-                        <div className="flex items-center gap-2 px-8 py-2 flex-wrap flex-none">
+                        <div className="flex items-center gap-2 px-4 py-2 flex-nowrap overflow-x-auto">
                             <Button
                                 startIcon={<MdMedicalServices size={14} />}
                                 disableElevation
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3",
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
@@ -541,7 +542,7 @@ export default function DoctorChatDashboard() {
                                 startIcon={<FaXRay size={14} />}
                                 disableElevation
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3",
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
@@ -566,7 +567,7 @@ export default function DoctorChatDashboard() {
                                 startIcon={<FaUpload size={14} />}
                                 disableElevation
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3",
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
@@ -582,7 +583,7 @@ export default function DoctorChatDashboard() {
                                 startIcon={<FaEdit size={14} />}
                                 disableElevation
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3",
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
@@ -596,7 +597,7 @@ export default function DoctorChatDashboard() {
 
                             <Button startIcon={<FaMicrophone size={14} />} disableElevation variant="contained"
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: isRecording ? "#EF4444" : "#f3f3f3",
                                     color: isRecording ? "#fff" : "#4B5563", "&:hover": { backgroundColor: isRecording ? "#DC2626" : "#e5e5e5" },
                                 }}
@@ -606,9 +607,20 @@ export default function DoctorChatDashboard() {
                                 {isRecording ? "Recording..." : "Record"}
                             </Button>
 
+                            <Button startIcon={<SiTicktick size={14} />} disableElevation variant="contained"
+                                sx={{
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
+                                    textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
+                                    "&:hover": { backgroundColor: "#e5e5e5" },
+                                }}
+                            // onClick={handleClose} disabled={selectedPatient.id === 0}
+                            >
+                                Approve
+                            </Button>
+
                             <Button startIcon={<FaTimes size={14} />} disableElevation variant="contained"
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "13px", borderRadius: "9999px",
+                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
                                     textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
                                     "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
