@@ -453,7 +453,7 @@ export default function DoctorChatDashboard() {
                                             initial={{ opacity: 0, y: 6 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             whileHover={{ scale: 1.01 }}
-                                            className={`rounded-xl px-3 py-2 font-semibold max-w-[70%] max-h-32 overflow-y-auto ${isMe ? "bg-blue-200 text-gray-600" : "bg-gray-100 text-gray-800"}`}
+                                            className={`rounded-xl px-3 py-2 font-semibold max-w-[70%] ${isMe ? "bg-blue-200 text-gray-600" : "bg-gray-100 text-gray-800"}`}
                                         >
                                             {!isMe && (
                                                 <div className="flex items-center gap-1 mb-1 text-[11px] text-blue-500">
