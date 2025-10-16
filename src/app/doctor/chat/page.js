@@ -155,7 +155,7 @@ export default function DoctorChatDashboard() {
 
     const [isTyping, setIsTyping] = useState(false);
 
-    const TRANSLATE_AUDIO_API_URL = "http://10.0.166.108:8000/translate_audio/";
+    const TRANSLATE_AUDIO_API_URL = "https://sttboaient.onrender.com/translate_audio/json";
 
     // Reference to hidden file input
     const fileInputRef = useRef(null);
@@ -192,17 +192,19 @@ export default function DoctorChatDashboard() {
             });
             const data = await response.json();
             console.log('data', data);
+            // Remove typing message
+            selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
 
-            // selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+            // Add the bot's transcription message
+            const transcriptionMessage = {
+                sender: "chatagent",
+                text: data.translations?.[0]?.transcription || "No transcription available.",
+                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                date: new Date().toISOString().split("T")[0],
+            };
+            selectedPatient.messages.push(transcriptionMessage);
 
-            // selectedPatient.messages.push({
-            //     sender: "chatagent",
-            //     text: data.translated_text || "No translation available",
-            //     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            //     date: new Date().toISOString().split("T")[0],
-            // });
-
-            // setPatients([...patients]);
+            setPatients([...patients]);
         } catch (err) {
             console.error(err);
             selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
