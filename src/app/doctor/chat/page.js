@@ -177,7 +177,7 @@ export default function DoctorChatDashboard() {
         setIsTyping(true);
 
         const formData = new FormData();
-        formData.append("file", file); // must match FastAPI param
+        formData.append("files", file); // must match FastAPI param
 
         console.log("API URL:", TRANSLATE_AUDIO_API_URL);
 
