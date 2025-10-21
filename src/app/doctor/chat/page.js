@@ -155,7 +155,7 @@ export default function DoctorChatDashboard() {
 
     const [isTyping, setIsTyping] = useState(false);
 
-    const TRANSLATE_AUDIO_API_URL = "https://sttboaient.onrender.com/translate_audio/json";
+    const TRANSLATE_AUDIO_API_URL = "https://sttboaient.onrender.com/api/v1/combined/transcribe-and-summarize";
 
     // Reference to hidden file input
     const fileInputRef = useRef(null);
@@ -199,6 +199,7 @@ export default function DoctorChatDashboard() {
             const transcriptionMessage = {
                 sender: "chatagent",
                 text: data.translations?.[0]?.transcription || "No transcription available.",
+                report: data.translations?.[0]?.report || "No Reports available.",
                 time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                 date: new Date().toISOString().split("T")[0],
             };
@@ -447,6 +448,7 @@ export default function DoctorChatDashboard() {
                         <div className="flex-1 p-3 space-y-2 overflow-y-auto">
                             {selectedPatient.messages.map((m, i) => {
                                 const isMe = m.sender === "You";
+                                const hasReport = m.report;
                                 return (
                                     <div key={i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                                         <motion.div
@@ -460,7 +462,63 @@ export default function DoctorChatDashboard() {
                                                     <span role="img">🤖</span> LifeEase Agent · {m.time}
                                                 </div>
                                             )}
-                                            <div className="text-[12px]">{m.text}</div>
+                                            <div className="text-[12px] space-y-2">
+                                                {/* Transcription text */}
+                                                <p>{m.text}</p>
+
+                                                {/* Render report if available */}
+                                                {hasReport && (
+                                                    <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 text-gray-700 space-y-2 text-[12px]">
+                                                        <h4 className="font-bold text-gray-800 border-b pb-1 mb-2">Summary Report</h4>
+
+                                                        <div>
+                                                            <strong>Doctor:</strong> {hasReport.doctor_details.name} ({hasReport.doctor_details.specialization})
+                                                        </div>
+                                                        <div>
+                                                            <strong>Patient:</strong> {hasReport.patient_details.name || "N/A"}
+                                                        </div>
+
+                                                        <div className="mt-2">
+                                                            <strong>Chief Complaint:</strong> {hasReport.consultation_summary.chief_complaint}
+                                                        </div>
+                                                        <div>
+                                                            <strong>History Of Present Illness:</strong> {hasReport.consultation_summary.history_of_present_illness}
+                                                        </div>
+                                                        <div>
+                                                            <strong>Past Medical History:</strong> {hasReport.consultation_summary.past_medical_history}
+                                                        </div>
+                                                        <div>
+                                                            <strong>Examination Findings:</strong> {hasReport.consultation_summary.examination_findings}
+                                                        </div>
+                                                        <div>
+                                                            <strong>Investigations:</strong> {hasReport.consultation_summary.investigations_or_tests}
+                                                        </div>
+
+                                                        <div className="mt-2">
+                                                            <strong>Prescription:</strong>
+                                                            <ul className="list-disc list-inside ml-2">
+                                                                {hasReport.prescription.map((med, idx) => (
+                                                                    <li key={idx}>
+                                                                        {med.medicine_name || "-"} | Notes: {med.notes || "-"}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+
+                                                        <div className="mt-2">
+                                                            <strong>Doctor Advice / Plan:</strong> {hasReport.doctor_advice_plan}
+                                                        </div>
+
+                                                        <div>
+                                                            <strong>Follow-up:</strong> {hasReport.follow_up.mode || "N/A"}
+                                                        </div>
+
+                                                        <div>
+                                                            <strong>Additional Notes:</strong> {hasReport.additional_notes}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                             {isMe && (
                                                 <div className="text-[10px] text-black mt-1 text-right">
                                                     <span role="img" aria-label="doctor" className="text-lg">👩‍⚕️</span>You · {m.time}
