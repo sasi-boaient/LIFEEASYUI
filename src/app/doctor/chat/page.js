@@ -75,6 +75,9 @@ export default function DoctorChatDashboard() {
     const [messageText, setMessageText] = useState("");
     const [patients, setPatients] = useState(sampleData.patients);
     const [isRecording, setIsRecording] = useState(false);
+    const [mediaRecorder, setMediaRecorder] = useState(null);
+    const [speechRecognition, setSpeechRecognition] = useState(null);
+
     const [isFocused, setIsFocused] = useState(false);
 
     // Filter only active patients
@@ -148,10 +151,33 @@ export default function DoctorChatDashboard() {
 
     const [openMRI, setOpenMRI] = useState(false);
     const [openXRay, setOpenXRay] = useState(false);
+    const [openEditSummary, setOpenEditSummary] = useState(false);
+    const [editableReport, setEditableReport] = useState(null);
+
+    const handleOpenEditSummary = () => {
+        console.log("edit Clicked.....");
+        if (selectedPatient && selectedPatient?.messages?.length > 0) {
+            // Get latest report
+            const lastReportMessage = [...selectedPatient.messages].reverse().find(m => m.report);
+            if (lastReportMessage) {
+                setEditableReport({ ...lastReportMessage.report });
+            } else {
+                // No report found
+                setEditableReport(null);
+            }
+        } else {
+            // No patient selected
+            setEditableReport(null);
+        }
+        setOpenEditSummary(true);
+    };
+
 
     const handleCloseMRI = () => setOpenMRI(false);
 
     const handleCloseXRay = () => setOpenXRay(false);
+
+    const handleCloseEditSummary = () => setOpenEditSummary(false);
 
     const [isTyping, setIsTyping] = useState(false);
 
@@ -218,6 +244,10 @@ export default function DoctorChatDashboard() {
             setPatients([...patients]);
         } finally {
             setIsTyping(false);
+            // RESET file input so user can select same file again
+            if (fileInputRef.current) {
+                fileInputRef.current.value = null;
+            }
         }
     };
 
@@ -228,43 +258,123 @@ export default function DoctorChatDashboard() {
         }
     };
 
-    const handleMicClick = () => {
+    const handleMicClick = async () => {
         if (!isRecording) {
-            // Start recording
             setIsRecording(true);
 
-            // Add "Translating..." message immediately
-            const typingMessage = {
-                sender: "chatagent",
-                text: "Translating...",
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                date: new Date().toISOString().split("T")[0],
-                typing: true
+            // Local transcript for this recording
+            let transcript = "";
+
+            // Start speech recognition
+            const recognition =
+                new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = "en-US";
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                transcript = event.results[0][0].transcript;
+                console.log("Transcript:", transcript);
             };
-            selectedPatient.messages.push(typingMessage);
-            setPatients([...patients]);
 
-            // Simulate backend translation after 3 seconds
-            setTimeout(() => {
-                // Remove typing message
-                selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+            };
 
-                // Add failed message
-                selectedPatient.messages.push({
-                    sender: "chatagent",
-                    text: "Failed to translate audio.",
+            recognition.start();
+
+            // Start audio recording
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+
+            const chunks = [];
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            recorder.onstop = async () => {
+                const audioBlob = new Blob(chunks, { type: "audio/mp3" });
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                // Show user's voice message immediately
+                const newMessage = {
+                    sender: "You",
+                    text: transcript || "Voice message",
+                    audio: audioBlob,
+                    audioUrl,
                     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                     date: new Date().toISOString().split("T")[0],
-                });
+                };
+                selectedPatient.messages.push(newMessage);
                 setPatients([...patients]);
-                setIsRecording(false);
-            }, 3000);
+
+                // Stop all tracks to remove browser recording icon
+                stream.getTracks().forEach(track => track.stop());
+
+                // --- Send MP3 to API ---
+                const typingMessage = {
+                    sender: "chatagent",
+                    text: "Translating audio...",
+                    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    date: new Date().toISOString().split("T")[0],
+                    typing: true
+                };
+                selectedPatient.messages.push(typingMessage);
+                setPatients([...patients]);
+
+                const formData = new FormData();
+                formData.append("files", audioBlob, "voice.mp3");
+
+                try {
+                    const response = await fetch(TRANSLATE_AUDIO_API_URL, {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const data = await response.json();
+
+                    // Remove typing message
+                    selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+
+                    // Add transcription + report
+                    const transcriptionMessage = {
+                        sender: "chatagent",
+                        text: data.translations?.[0]?.transcription || "No transcription available.",
+                        report: data.translations?.[0]?.report || "No Reports available.",
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        date: new Date().toISOString().split("T")[0],
+                    };
+                    selectedPatient.messages.push(transcriptionMessage);
+                    setPatients([...patients]);
+
+                } catch (err) {
+                    console.error(err);
+                    selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
+                    selectedPatient.messages.push({
+                        sender: "chatagent",
+                        text: "Failed to translate audio.",
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        date: new Date().toISOString().split("T")[0],
+                    });
+                    setPatients([...patients]);
+                } finally {
+                    setIsRecording(false);
+                }
+            };
+
+            recorder.start();
+
+            // Save references to stop later
+            setMediaRecorder(recorder);
+            setSpeechRecognition(recognition);
+
         } else {
-            // Stop recording early if needed
+            // Stop recording
+            if (speechRecognition) speechRecognition.stop();
+            if (mediaRecorder) mediaRecorder.stop();
             setIsRecording(false);
-            // You could optionally remove "Translating..." immediately on stop
         }
     };
+
 
     return (
         <div className="h-screen flex flex-col bg-gray-100 text-gray-800 text-sm">
@@ -465,6 +575,9 @@ export default function DoctorChatDashboard() {
                                             <div className="text-[12px] space-y-2">
                                                 {/* Transcription text */}
                                                 <p>{m.text}</p>
+                                                {m.audioUrl && (
+                                                    <audio controls src={m.audioUrl} className="mt-1 w-full rounded-md" />
+                                                )}
 
                                                 {/* Render report if available */}
                                                 {hasReport && (
@@ -648,9 +761,11 @@ export default function DoctorChatDashboard() {
                                     color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
                                 variant="contained"
-                                onClick={() => {
-                                    console.log("Edit button clicked!");
-                                }}
+                                // onClick={() => {
+                                //     console.log("Edit button clicked!");
+                                //     setOpenEditSummary(true);
+                                // }}
+                                onClick={handleOpenEditSummary}
                             >
                                 Edit
                             </Button>
@@ -673,7 +788,9 @@ export default function DoctorChatDashboard() {
                                     textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
                                     "&:hover": { backgroundColor: "#e5e5e5" },
                                 }}
-                            // onClick={handleClose} disabled={selectedPatient.id === 0}
+                                onClick={() => {
+                                    console.log("Updated Report:", editableReport);
+                                }}
                             >
                                 Approve
                             </Button>
@@ -814,6 +931,263 @@ export default function DoctorChatDashboard() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseXRay}>Close</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={openEditSummary} onClose={() => setOpenEditSummary(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Edit Summary</DialogTitle>
+                <DialogContent dividers className="space-y-3">
+                    {editableReport ? (
+                        <div className="space-y-2 text-[13px]">
+                            {/* Doctor Details */}
+                            <div>
+                                <strong>Doctor Name:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.doctor_details.name}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            doctor_details: { ...prev.doctor_details, name: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Specialization:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.doctor_details.specialization}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            doctor_details: { ...prev.doctor_details, specialization: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+
+                            {/* Patient Details */}
+                            <div>
+                                <strong>Patient Name:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.patient_details.name || ""}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            patient_details: { ...prev.patient_details, name: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Patient ID:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.patient_details.id || ""}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            patient_details: { ...prev.patient_details, id: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Age/Gender:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.patient_details.age_gender || ""}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            patient_details: { ...prev.patient_details, age_gender: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+
+                            {/* Consultation Summary */}
+                            <div>
+                                <strong>Chief Complaint:</strong>
+                                <textarea
+                                    value={editableReport.consultation_summary.chief_complaint}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            consultation_summary: { ...prev.consultation_summary, chief_complaint: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>History of Present Illness:</strong>
+                                <textarea
+                                    value={editableReport.consultation_summary.history_of_present_illness}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            consultation_summary: { ...prev.consultation_summary, history_of_present_illness: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Past Medical History:</strong>
+                                <textarea
+                                    value={editableReport.consultation_summary.past_medical_history}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            consultation_summary: { ...prev.consultation_summary, past_medical_history: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Examination Findings:</strong>
+                                <textarea
+                                    value={editableReport.consultation_summary.examination_findings}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            consultation_summary: { ...prev.consultation_summary, examination_findings: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                            <div>
+                                <strong>Investigations / Tests:</strong>
+                                <textarea
+                                    value={editableReport.consultation_summary.investigations_or_tests}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            consultation_summary: { ...prev.consultation_summary, investigations_or_tests: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+
+                            {/* Doctor Advice */}
+                            <div>
+                                <strong>Doctor Advice / Plan:</strong>
+                                <textarea
+                                    value={editableReport.doctor_advice_plan}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({ ...prev, doctor_advice_plan: e.target.value }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+
+                            {/* Follow-up */}
+                            <div>
+                                <strong>Follow-up Mode:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.follow_up.mode || ""}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            follow_up: { ...prev.follow_up, mode: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                                <strong>Next Visit:</strong>
+                                <input
+                                    type="text"
+                                    value={editableReport.follow_up.next_visit || ""}
+                                    onChange={(e) =>
+                                        setEditableReport(prev => ({
+                                            ...prev,
+                                            follow_up: { ...prev.follow_up, next_visit: e.target.value }
+                                        }))
+                                    }
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+
+                            {/* Additional Notes */}
+                            <div>
+                                <strong>Additional Notes:</strong>
+                                <textarea
+                                    value={editableReport.additional_notes}
+                                    onChange={(e) => setEditableReport(prev => ({ ...prev, additional_notes: e.target.value }))}
+                                    className="w-full border p-1 rounded"
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 text-center">No report data available.</p>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenEditSummary(false)}>Close</Button>
+                    {/* chat will grow naturally if we edit 10 times then 10 chat */}
+                    {/* <Button
+                        variant="contained"
+                        onClick={() => {
+                            if (!editableReport) return;
+
+                            // Push a new chat message from "You" with the updated report
+                            const newMessage = {
+                                sender: "You",
+                                text: "Edited Report", // optional: or a short summary
+                                report: editableReport,
+                                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                date: new Date().toISOString().split("T")[0],
+                            };
+
+                            selectedPatient.messages.push(newMessage);
+                            setPatients([...patients]); // trigger re-render
+
+                            setOpenEditSummary(false);
+                        }}
+                    >
+                        Save
+                    </Button> */}
+
+                    <Button
+                        variant="contained"
+                        onClick={() => {
+                            if (!editableReport) return;
+
+                            // Remove previous edited report messages sent by "You"
+                            selectedPatient.messages = selectedPatient.messages.filter(
+                                m => !(m.sender === "You" && m.report)
+                            );
+
+                            // Push the new edited report as a message
+                            const newMessage = {
+                                sender: "You",
+                                text: "Edited Report", // or summary if you want
+                                report: editableReport,
+                                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                date: new Date().toISOString().split("T")[0],
+                            };
+
+                            selectedPatient.messages.push(newMessage);
+                            setPatients([...patients]); // trigger re-render
+
+                            setOpenEditSummary(false);
+                        }}
+                    >
+                        Save
+                    </Button>
+
                 </DialogActions>
             </Dialog>
 
