@@ -217,18 +217,27 @@ export default function DoctorChatDashboard() {
                 body: formData,
             });
             const data = await response.json();
-            console.log('data', data);
+            // console.log('data', data);
             // Remove typing message
             selectedPatient.messages = selectedPatient.messages.filter(m => !m.typing);
 
-            // Add the bot's transcription message
+            const firstTranslation = data?.translations?.[0] || null;
+
             const transcriptionMessage = {
                 sender: "chatagent",
-                text: data.translations?.[0]?.transcription || "No transcription available.",
-                report: data.translations?.[0]?.report || "No Reports available.",
+                text: firstTranslation?.transcription || "No transcription available.",
+                report: firstTranslation?.report || null,  // use null instead of string
                 time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                 date: new Date().toISOString().split("T")[0],
             };
+            // Add the bot's transcription message
+            // const transcriptionMessage = {
+            //     sender: "chatagent",
+            //     text: data.translations?.[0]?.transcription || "No transcription available.",
+            //     report: data.translations?.[0]?.report || "No Reports available.",
+            //     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            //     date: new Date().toISOString().split("T")[0],
+            // };
             selectedPatient.messages.push(transcriptionMessage);
 
             setPatients([...patients]);
