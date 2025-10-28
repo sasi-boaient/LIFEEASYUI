@@ -487,21 +487,65 @@ export default function DoctorChatDashboard() {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
                     sampleRate: 16000,
                 });
+
+                // Prevent auto-suspend of AudioContext (Chrome does this during silence)
+                if (audioCtx.state === "suspended") {
+                    audioCtx.resume();
+                }
+
+                // Keep it alive
+                const keepAlive = setInterval(() => {
+                    if (audioCtx.state === "suspended") audioCtx.resume();
+                }, 10000);
+
+                // Clear when stopping
+                audioCtxRef.current = { audioCtx, keepAlive };
+
                 const source = audioCtx.createMediaStreamSource(stream);
                 const processor = audioCtx.createScriptProcessor(4096, 1, 1);
 
                 // 🎤 Start recording audio
+                // processor.onaudioprocess = (e) => {
+                //     if (ws.readyState !== 1) return;
+                //     const input = e.inputBuffer.getChannelData(0);
+                //     const pcmData = new Int16Array(input.length);
+                //     for (let i = 0; i < input.length; i++) {
+                //         const s = Math.max(-1, Math.min(1, input[i]));
+                //         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                //     }
+                //     const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+                //     ws.send(JSON.stringify({ type: "audio", audio: base64 }));
+                // };
+
                 processor.onaudioprocess = (e) => {
                     if (ws.readyState !== 1) return;
                     const input = e.inputBuffer.getChannelData(0);
+
+                    // Detect volume level (to handle silence)
+                    const rms = Math.sqrt(input.reduce((acc, val) => acc + val * val, 0) / input.length);
+
+                    // Convert to PCM
                     const pcmData = new Int16Array(input.length);
                     for (let i = 0; i < input.length; i++) {
                         const s = Math.max(-1, Math.min(1, input[i]));
                         pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
                     }
                     const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+
+                    // 🟢 Send data regardless of voice activity (prevents idle timeout)
                     ws.send(JSON.stringify({ type: "audio", audio: base64 }));
+
+                    // 🔇 OPTIONAL: If silence detected, send keep-alive ping every ~10s
+                    if (rms < 0.001) {
+                        const now = Date.now();
+                        if (!processor.lastPing || now - processor.lastPing > 10000) {
+                            ws.send(JSON.stringify({ type: "ping", ts: now }));
+                            processor.lastPing = now;
+                            console.log("📡 Sent keep-alive ping (silence detected)");
+                        }
+                    }
                 };
+
 
                 source.connect(processor);
                 processor.connect(audioCtx.destination);
@@ -543,11 +587,17 @@ export default function DoctorChatDashboard() {
             ws.onclose = () => {
                 console.log("🔒 WebSocket closed");
                 setIsRecording(false);
+                clearInterval(audioCtxRef.current?.keepAlive);
+                audioCtxRef.current?.audioCtx?.close();
+
             };
 
             ws.onerror = (err) => {
                 console.error("❌ WebSocket error:", err);
                 setIsRecording(false);
+                clearInterval(audioCtxRef.current?.keepAlive);
+                audioCtxRef.current?.audioCtx?.close();
+
             };
         } else {
             // 🛑 Stop recording
