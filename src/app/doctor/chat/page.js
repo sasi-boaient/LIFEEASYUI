@@ -388,6 +388,11 @@ export default function DoctorChatDashboard() {
 
     const handleMicClick = async () => {
         if (!isRecording) {
+            // 20sec code
+            const CHUNK_DURATION_MS = 20000;
+            let audioBufferChunks = [];
+            // -----------------------
+
             const ws = new WebSocket("wss://sttboaient.onrender.com/ws/translate");
             wsRef.current = ws;
 
@@ -419,10 +424,40 @@ export default function DoctorChatDashboard() {
                 return result;
             }
 
+            // uncomment this after removing 20sec code
+            // function base64FromArrayBuffer(arrayBuffer) {
+            //     const binary = String.fromCharCode(...new Uint8Array(arrayBuffer));
+            //     return btoa(binary);
+            // }
+
+            // 20sec code ----------
             function base64FromArrayBuffer(arrayBuffer) {
-                const binary = String.fromCharCode(...new Uint8Array(arrayBuffer));
+                const uint8 = new Uint8Array(arrayBuffer);
+                let binary = "";
+
+                const chunkSize = 0x8000; // 32KB chunks
+
+                for (let i = 0; i < uint8.length; i += chunkSize) {
+                    binary += String.fromCharCode.apply(
+                        null,
+                        uint8.subarray(i, i + chunkSize)
+                    );
+                }
+
                 return btoa(binary);
             }
+
+            function mergeFloat32Arrays(chunks) {
+                const length = chunks.reduce((sum, arr) => sum + arr.length, 0);
+                const merged = new Float32Array(length);
+                let offset = 0;
+                for (let arr of chunks) {
+                    merged.set(arr, offset);
+                    offset += arr.length;
+                }
+                return merged;
+            }
+            // -----------------------
 
             ws.onopen = async () => {
                 console.log("✅ WebSocket connected");
@@ -451,19 +486,43 @@ export default function DoctorChatDashboard() {
                 const source = audioCtx.createMediaStreamSource(stream);
                 const processor = audioCtx.createScriptProcessor(4096, 1, 1);
 
+                // uncomment this after removing 20sec code
+                // processor.onaudioprocess = (e) => {
+                //     if (ws.readyState !== 1) return;
+
+                //     let input = e.inputBuffer.getChannelData(0);
+
+                //     // ✅ Convert to proper sample rate BEFORE PCM encoding
+                //     input = downsampleBuffer(input, audioCtx.sampleRate, 16000);
+
+                //     const pcm16 = pcmFloatTo16BitPCM(input);
+                //     const base64Audio = base64FromArrayBuffer(pcm16);
+
+                //     ws.send(JSON.stringify({ type: "audio", audio: base64Audio }));
+                // };
+
+                // 20 sec code
                 processor.onaudioprocess = (e) => {
                     if (ws.readyState !== 1) return;
 
-                    let input = e.inputBuffer.getChannelData(0);
+                    let input = downsampleBuffer(e.inputBuffer.getChannelData(0), audioCtx.sampleRate, 16000);
+                    audioBufferChunks.push(new Float32Array(input));
+                };
 
-                    // ✅ Convert to proper sample rate BEFORE PCM encoding
-                    input = downsampleBuffer(input, audioCtx.sampleRate, 16000);
+                // Send bulk chunks every CHUNK_DURATION_MS
+                chunkTimer = setInterval(() => {
+                    if (ws.readyState !== 1 || audioBufferChunks.length === 0) return;
 
-                    const pcm16 = pcmFloatTo16BitPCM(input);
+                    const merged = mergeFloat32Arrays(audioBufferChunks);
+                    const pcm16 = pcmFloatTo16BitPCM(merged);
                     const base64Audio = base64FromArrayBuffer(pcm16);
 
                     ws.send(JSON.stringify({ type: "audio", audio: base64Audio }));
-                };
+                    audioBufferChunks = [];
+
+                    console.log(`📤 Sent ${CHUNK_DURATION_MS / 1000} sec chunk`);
+                }, CHUNK_DURATION_MS);
+                // -----------------------
 
                 source.connect(processor);
                 processor.connect(audioCtx.destination);
