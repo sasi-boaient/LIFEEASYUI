@@ -391,6 +391,7 @@ export default function DoctorChatDashboard() {
             // 20sec code
             const CHUNK_DURATION_MS = 20000;
             let audioBufferChunks = [];
+            let chunkTimer = null;
             // -----------------------
 
             const ws = new WebSocket("wss://sttboaient.onrender.com/ws/translate");
@@ -424,7 +425,6 @@ export default function DoctorChatDashboard() {
                 return result;
             }
 
-            // uncomment this after removing 20sec code
             // function base64FromArrayBuffer(arrayBuffer) {
             //     const binary = String.fromCharCode(...new Uint8Array(arrayBuffer));
             //     return btoa(binary);
@@ -457,7 +457,6 @@ export default function DoctorChatDashboard() {
                 }
                 return merged;
             }
-            // -----------------------
 
             ws.onopen = async () => {
                 console.log("✅ WebSocket connected");
@@ -486,7 +485,6 @@ export default function DoctorChatDashboard() {
                 const source = audioCtx.createMediaStreamSource(stream);
                 const processor = audioCtx.createScriptProcessor(4096, 1, 1);
 
-                // uncomment this after removing 20sec code
                 // processor.onaudioprocess = (e) => {
                 //     if (ws.readyState !== 1) return;
 
@@ -501,7 +499,6 @@ export default function DoctorChatDashboard() {
                 //     ws.send(JSON.stringify({ type: "audio", audio: base64Audio }));
                 // };
 
-                // 20 sec code
                 processor.onaudioprocess = (e) => {
                     if (ws.readyState !== 1) return;
 
@@ -522,7 +519,6 @@ export default function DoctorChatDashboard() {
 
                     console.log(`📤 Sent ${CHUNK_DURATION_MS / 1000} sec chunk`);
                 }, CHUNK_DURATION_MS);
-                // -----------------------
 
                 source.connect(processor);
                 processor.connect(audioCtx.destination);
