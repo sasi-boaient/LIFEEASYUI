@@ -433,7 +433,7 @@ export default function DoctorChatDashboard() {
                         });
 
                         const data = await response.json();
-                        console.log("Upload response:", data);
+                        // console.log("Upload response:", data);
 
                         // ✅ Remove typing message
                         selectedPatient.messages = selectedPatient.messages.filter((m) => !m.typing);
