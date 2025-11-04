@@ -78,6 +78,8 @@ export default function DoctorChatDashboard() {
     const [alertOpen, setAlertOpen] = useState(false);
     const [isFocused, setIsFocused] = useState(false);
 
+    const [loadingApprove, setLoadingApprove] = useState(false);
+
     const activePatients = patients.filter((p) => p.status === "Active");
 
     const selectedPatient = useMemo(
@@ -241,10 +243,12 @@ export default function DoctorChatDashboard() {
     const [openXRay, setOpenXRay] = useState(false);
     const [openEditSummary, setOpenEditSummary] = useState(false);
     const [editableReport, setEditableReport] = useState(defaultReport);
+    const [loadingEdit, setLoadingEdit] = useState(false);
 
     const handleOpenEditSummary = async () => {
         console.log("edit Clicked.....");
         console.log("lastReportMessage", selectedPatient);
+        setLoadingEdit(true);
         const patientId = "111";
         const medical_report_url = `https://sttboaient.onrender.com/report-data/${patientId}`;
 
@@ -255,6 +259,8 @@ export default function DoctorChatDashboard() {
             setOpenEditSummary(true);
         } catch (error) {
             console.error("❌ Failed to fetch report:", error.message);
+        } finally {
+            setLoadingEdit(false);  // ✅ re-enable button
         }
     };
 
@@ -366,313 +372,189 @@ export default function DoctorChatDashboard() {
         );
     };
 
-    const wsRef = useRef(null);
-    const audioCtxRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
 
-    function cleanupAudioContext() {
-        if (!audioCtxRef.current) return;
-
-        const { audioCtx, keepAlive } = audioCtxRef.current;
-
-        // ✅ Stop keep-alive timer
-        clearInterval(keepAlive);
-
-        // ✅ Only close if still running
-        if (audioCtx && audioCtx.state !== "closed") {
-            audioCtx.close().catch(() => { });
-        }
-
-        // ✅ Free reference
-        audioCtxRef.current = null;
-    }
+    const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
     const handleMicClick = async () => {
         if (!isRecording) {
-            // 20sec code
-            const CHUNK_DURATION_MS = 20000;
-            let audioBufferChunks = [];
-            let chunkTimer = null;
-            // -----------------------
-
-            const ws = new WebSocket("wss://sttboaient.onrender.com/ws/translate");
-            wsRef.current = ws;
-
-            // ✅ Convert Float32 → Int16 PCM
-            function pcmFloatTo16BitPCM(float32Array) {
-                const buffer = new ArrayBuffer(float32Array.length * 2);
-                const view = new DataView(buffer);
-
-                for (let i = 0; i < float32Array.length; i++) {
-                    let s = Math.max(-1, Math.min(1, float32Array[i]));
-                    view.setInt16(i * 2, s * 0x7fff, true);
-                }
-
-                return buffer;
-            }
-
-            // ✅ Resample browser 48kHz → 16kHz
-            function downsampleBuffer(buffer, sampleRate, outRate = 16000) {
-                if (outRate === sampleRate) return buffer;
-
-                const ratio = sampleRate / outRate;
-                const newLength = Math.round(buffer.length / ratio);
-                const result = new Float32Array(newLength);
-
-                for (let i = 0, j = 0; i < newLength; i++, j += ratio) {
-                    result[i] = buffer[Math.floor(j)];
-                }
-
-                return result;
-            }
-
-            // function base64FromArrayBuffer(arrayBuffer) {
-            //     const binary = String.fromCharCode(...new Uint8Array(arrayBuffer));
-            //     return btoa(binary);
-            // }
-
-            // 20sec code ----------
-            function base64FromArrayBuffer(arrayBuffer) {
-                const uint8 = new Uint8Array(arrayBuffer);
-                let binary = "";
-
-                const chunkSize = 0x8000; // 32KB chunks
-
-                for (let i = 0; i < uint8.length; i += chunkSize) {
-                    binary += String.fromCharCode.apply(
-                        null,
-                        uint8.subarray(i, i + chunkSize)
-                    );
-                }
-
-                return btoa(binary);
-            }
-
-            function mergeFloat32Arrays(chunks) {
-                const length = chunks.reduce((sum, arr) => sum + arr.length, 0);
-                const merged = new Float32Array(length);
-                let offset = 0;
-                for (let arr of chunks) {
-                    merged.set(arr, offset);
-                    offset += arr.length;
-                }
-                return merged;
-            }
-
-            ws.onopen = async () => {
-                console.log("✅ WebSocket connected");
-
-                ws.send(
-                    JSON.stringify({
-                        type: "session_info",
-                        patient_id: "111",
-                        dr_name: "rec",
-                    })
-                );
-
+            try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: 16000,
-                });
+                const mediaRecorder = new MediaRecorder(stream);
+                mediaRecorderRef.current = mediaRecorder;
+                audioChunksRef.current = [];
 
-                // Prevent browser from auto-suspending AudioContext
-                if (audioCtx.state === "suspended") audioCtx.resume();
-                const keepAlive = setInterval(() => {
-                    if (audioCtx.state === "suspended") audioCtx.resume();
-                }, 10000);
-
-                audioCtxRef.current = { audioCtx, keepAlive };
-
-                const source = audioCtx.createMediaStreamSource(stream);
-                const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-
-                // processor.onaudioprocess = (e) => {
-                //     if (ws.readyState !== 1) return;
-
-                //     let input = e.inputBuffer.getChannelData(0);
-
-                //     // ✅ Convert to proper sample rate BEFORE PCM encoding
-                //     input = downsampleBuffer(input, audioCtx.sampleRate, 16000);
-
-                //     const pcm16 = pcmFloatTo16BitPCM(input);
-                //     const base64Audio = base64FromArrayBuffer(pcm16);
-
-                //     ws.send(JSON.stringify({ type: "audio", audio: base64Audio }));
-                // };
-
-                processor.onaudioprocess = (e) => {
-                    if (ws.readyState !== 1) return;
-
-                    let input = downsampleBuffer(e.inputBuffer.getChannelData(0), audioCtx.sampleRate, 16000);
-                    audioBufferChunks.push(new Float32Array(input));
-                };
-
-                // Send bulk chunks every CHUNK_DURATION_MS
-                chunkTimer = setInterval(() => {
-                    if (ws.readyState !== 1 || audioBufferChunks.length === 0) return;
-
-                    const merged = mergeFloat32Arrays(audioBufferChunks);
-                    const pcm16 = pcmFloatTo16BitPCM(merged);
-                    const base64Audio = base64FromArrayBuffer(pcm16);
-
-                    ws.send(JSON.stringify({ type: "audio", audio: base64Audio }));
-                    audioBufferChunks = [];
-
-                    console.log(`📤 Sent ${CHUNK_DURATION_MS / 1000} sec chunk`);
-                }, CHUNK_DURATION_MS);
-
-                source.connect(processor);
-                processor.connect(audioCtx.destination);
-
-                setIsRecording(true);
-
-                selectedPatient.messages.push({
+                // ✅ Add "audio capturing..." message when recording starts
+                const captureMessage = {
                     sender: "chatagent",
-                    text: "",
+                    text: "audio capturing..............",
                     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                     date: new Date().toISOString().split("T")[0],
-                    isLive: true,
-                });
+                    capturing: true,
+                };
+                selectedPatient.messages.push(captureMessage);
                 setPatients([...patients]);
+                setIsRecording(true);
 
-                console.log("🎙️ Started capturing & streaming audio...");
-            };
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunksRef.current.push(e.data);
+                };
 
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === "transcript" && data.text) {
-                        console.log("🌐 Translation output:", data.text);
+                mediaRecorder.onstop = async () => {
+                    stream.getTracks().forEach((t) => t.stop());
+                    const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
+                    const audioFile = new File([audioBlob], "recording.wav", { type: "audio/wav" });
 
-                        const liveMsg = selectedPatient.messages.find((m) => m.isLive);
-                        if (liveMsg) {
-                            liveMsg.text = (liveMsg.text + " " + data.text).trim();
-                            setPatients([...patients]);
-                        }
-                    }
-                } catch (err) {
-                    console.error("❌ Parse error:", err);
-                }
-            };
-
-            ws.onclose = () => {
-                console.log("🔒 WebSocket closed");
-                cleanupAudioContext();
-                setIsRecording(false);
-            };
-
-            ws.onerror = (err) => {
-                console.error("❌ WebSocket error:", err);
-                cleanupAudioContext();
-                setIsRecording(false);
-            };
-
-
-        }
-        else {
-            // Stop recording
-            setIsRecording(false);
-            console.log("Stopped streaming audio");
-
-            if (wsRef.current && wsRef.current.readyState === 1) {
-                wsRef.current.send(JSON.stringify({ type: "close" }));
-                wsRef.current.close();
-            }
-
-            cleanupAudioContext();
-            setIsRecording(false);
-
-            try {
-                // Get full transcription
-                const transcriptionRes = await fetch(
-                    "https://sttboaient.onrender.com/transcriptions?limit=1000&patient_id=111&dr_name=rec"
-                );
-                const transcriptionJson = await transcriptionRes.json();
-                const transcriptionData = transcriptionJson?.transcriptions?.[0]?.transcription_data || "";
-
-                if (transcriptionData) {
-                    console.log("Final transcription:", transcriptionData);
-
-                    // Update chat with full transcription
-                    const liveMsg = selectedPatient.messages.find((m) => m.isLive);
-                    if (liveMsg) {
-                        liveMsg.text = transcriptionData;
-                        delete liveMsg.isLive;
-                    } else {
-                        selectedPatient.messages.push({
-                            sender: "chatagent",
-                            text: transcriptionData,
-                            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                            date: new Date().toISOString().split("T")[0],
-                        });
-                    }
-                    setPatients([...patients]);
-
-                    // Show temporary "Loading summary..." message
-                    const loadingMsg = {
-                        sender: "chatagent",
-                        text: "⏳ Generating summary report...",
-                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                        date: new Date().toISOString().split("T")[0],
-                        isLoading: true,
-                    };
-                    selectedPatient.messages.push(loadingMsg);
+                    // 🔄 Replace "audio capturing..." with "Processing recorded audio..."
+                    selectedPatient.messages = selectedPatient.messages.map((msg) =>
+                        msg.capturing
+                            ? {
+                                ...msg,
+                                text: "Processing recorded audio...",
+                                capturing: false,
+                                typing: true,
+                            }
+                            : msg
+                    );
                     setPatients([...patients]);
 
                     try {
-                        // Generate summary
-                        console.log("Generating summary...");
-                        await fetch("https://sttboaient.onrender.com/generate-summary/111", {
+                        setIsProcessingAudio(true);
+                        // ✅ Upload audio with correct payload
+                        const formData = new FormData();
+                        formData.append("audio_file", audioFile);
+                        formData.append("patient_id", "111");
+                        formData.append("doctor_name", "unknown");
+
+                        const response = await fetch("https://sttboaient.onrender.com/audio/process-simple?patient_id=111&doctor_name=unknown", {
                             method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ transcription_data: transcriptionData }),
+                            body: formData,
                         });
 
-                        // Fetch summary report
-                        console.log("Fetching summary report...");
-                        const reportRes = await fetch("https://sttboaient.onrender.com/report-data/111");
-                        const reportJson = await reportRes.json();
-                        const report = reportJson?.report_data;
-                        setLatestSummaryReport(report)
+                        const data = await response.json();
+                        console.log("Upload response:", data);
 
-                        if (report) {
-                            selectedPatient.messages = selectedPatient.messages.filter((m) => !m.isLoading);
+                        // ✅ Remove typing message
+                        selectedPatient.messages = selectedPatient.messages.filter((m) => !m.typing);
+                        setPatients([...patients]);
+
+                        // ✅ Fetch latest transcription from GET API
+                        const transcriptionRes = await fetch(
+                            "https://sttboaient.onrender.com/transcriptions/111"
+                        );
+                        const transcriptionJson = await transcriptionRes.json();
+                        const transcriptionData =
+                            transcriptionJson?.transcriptions?.[0]?.transcription_data || "";
+
+                        if (transcriptionData) {
+                            console.log("Final transcription:", transcriptionData);
+
+                            // 🗣️ Add transcription message to chat
                             selectedPatient.messages.push({
                                 sender: "chatagent",
-                                report: report,
+                                text: transcriptionData,
                                 time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                                 date: new Date().toISOString().split("T")[0],
-                                isSummary: true,
                             });
-
                             setPatients([...patients]);
-                            console.log("✅ Summary added to chat");
-                        }
 
-                        else {
-                            throw new Error("No report_data found");
+                            // ⏳ Add temporary "Generating summary..." message
+                            const loadingMsg = {
+                                sender: "chatagent",
+                                text: "⏳ Generating summary report...",
+                                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                date: new Date().toISOString().split("T")[0],
+                                isLoading: true,
+                            };
+                            selectedPatient.messages.push(loadingMsg);
+                            setPatients([...patients]);
+
+                            try {
+                                // 🧠 Generate summary
+                                console.log("Generating summary...");
+                                await fetch("https://sttboaient.onrender.com/generate-summary/111", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ transcription_data: transcriptionData }),
+                                });
+
+                                // 📄 Fetch summary report
+                                console.log("Fetching summary report...");
+                                const reportRes = await fetch("https://sttboaient.onrender.com/report-data/111");
+                                const reportJson = await reportRes.json();
+                                const report = reportJson?.report_data;
+
+                                setLatestSummaryReport(report);
+
+                                if (report) {
+                                    // Remove loading message
+                                    selectedPatient.messages = selectedPatient.messages.filter((m) => !m.isLoading);
+
+                                    // ✅ Add summary report to chat
+                                    selectedPatient.messages.push({
+                                        sender: "chatagent",
+                                        report: report,
+                                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                        date: new Date().toISOString().split("T")[0],
+                                        isSummary: true,
+                                    });
+                                    setPatients([...patients]);
+                                    console.log("✅ Summary added to chat");
+                                } else {
+                                    throw new Error("No report_data found");
+                                }
+                            } catch (innerErr) {
+                                console.error("Summary fetch failed:", innerErr);
+                                const failMsg = selectedPatient.messages.find((m) => m.isLoading);
+                                if (failMsg) {
+                                    failMsg.text = "⚠️ Summary fetch failed.";
+                                    delete failMsg.isLoading;
+                                    setPatients([...patients]);
+                                }
+                            }
+                        } else {
+                            // 🧩 If transcription empty
+                            selectedPatient.messages.push({
+                                sender: "chatagent",
+                                text: "No transcription returned.",
+                                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                date: new Date().toISOString().split("T")[0],
+                            });
+                            setPatients([...patients]);
                         }
-                    } catch (innerErr) {
-                        console.error("Summary fetch failed:", innerErr);
-                        loadingMsg.text = "⚠️ Summary fetch failed.";
-                        delete loadingMsg.isLoading;
+                    } catch (error) {
+                        console.error("Audio processing failed:", error);
+                        selectedPatient.messages = selectedPatient.messages.filter((m) => !m.typing);
+                        selectedPatient.messages.push({
+                            sender: "chatagent",
+                            text: "Failed to process recorded audio.",
+                            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                            date: new Date().toISOString().split("T")[0],
+                        });
                         setPatients([...patients]);
+                    } finally {
+                        setIsProcessingAudio(false);
+                        setIsRecording(false);
                     }
-                }
+                };
+
+
+                mediaRecorder.start();
             } catch (err) {
-                console.error("Error in transcription → summary pipeline:", err);
-                selectedPatient.messages.push({
-                    sender: "chatagent",
-                    text: "⚠️ Summary fetch failed due to network or API issue.",
-                    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    date: new Date().toISOString().split("T")[0],
-                });
-                setPatients([...patients]);
+                console.error("Microphone access denied:", err);
+                alert("Microphone permission denied or not available.");
+            }
+        } else {
+            // 🛑 Stop recording
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+                mediaRecorderRef.current.stop();
             }
         }
-
     };
 
     const handleApproveReport = async () => {
+        setLoadingApprove(true);
         const patientId = "111";
         const approvalUrl = `https://sttboaient.onrender.com/approval/${patientId}?approval=true`;
 
@@ -710,6 +592,8 @@ export default function DoctorChatDashboard() {
             setPatients([...patients]);
         } catch (error) {
             console.error("❌ Approval error:", error);
+        } finally {
+            setLoadingApprove(false);
         }
     };
 
@@ -1038,18 +922,30 @@ export default function DoctorChatDashboard() {
                             </Button>
 
                             <Button
-                                startIcon={<FaEdit size={14} />}
+                                startIcon={!loadingEdit && <FaEdit size={14} />}
                                 disableElevation
-                                sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
-                                    textTransform: "none", backgroundColor: "#f3f3f3",
-                                    color: "#4B5563", "&:hover": { backgroundColor: "#e5e5e5" },
-                                }}
                                 variant="contained"
+                                disabled={loadingEdit || isProcessingAudio}
+                                sx={{
+                                    minWidth: "auto",
+                                    padding: "4px 12px",
+                                    fontSize: "12px",
+                                    borderRadius: "9999px",
+                                    textTransform: "none",
+                                    backgroundColor:
+                                        loadingEdit || isProcessingAudio ? "#e5e7eb" : "#f3f3f3",
+                                    color: "#4B5563",
+                                    cursor: loadingEdit || isProcessingAudio ? "not-allowed" : "pointer",
+                                    "&:hover": {
+                                        backgroundColor:
+                                            loadingEdit || isProcessingAudio ? "#e5e7eb" : "#e5e5e5",
+                                    },
+                                }}
                                 onClick={handleOpenEditSummary}
                             >
-                                Edit
+                                {loadingEdit ? "Loading..." : "Edit"}
                             </Button>
+
 
                             <Button startIcon={<FaMicrophone size={14} />} disableElevation variant="contained"
                                 sx={{
@@ -1062,16 +958,31 @@ export default function DoctorChatDashboard() {
                                 {isRecording ? "Recording..." : "Record"}
                             </Button>
 
-                            <Button startIcon={<SiTicktick size={14} />} disableElevation variant="contained"
+                            <Button
+                                startIcon={!loadingApprove && <SiTicktick size={14} />}
+                                disableElevation
+                                variant="contained"
+                                disabled={loadingApprove || isProcessingAudio}
                                 sx={{
-                                    minWidth: "auto", padding: "4px 12px", fontSize: "12px", borderRadius: "9999px",
-                                    textTransform: "none", backgroundColor: "#f3f3f3", color: "#4B5563",
-                                    "&:hover": { backgroundColor: "#e5e5e5" },
+                                    minWidth: "auto",
+                                    padding: "4px 12px",
+                                    fontSize: "12px",
+                                    borderRadius: "9999px",
+                                    textTransform: "none",
+                                    backgroundColor:
+                                        loadingApprove || isProcessingAudio ? "#e5e7eb" : "#f3f3f3",
+                                    color: "#4B5563",
+                                    cursor: loadingApprove || isProcessingAudio ? "not-allowed" : "pointer",
+                                    "&:hover": {
+                                        backgroundColor:
+                                            loadingApprove || isProcessingAudio ? "#e5e7eb" : "#e5e5e5",
+                                    },
                                 }}
-                                onClick={() => handleApproveReport()}
+                                onClick={handleApproveReport}
                             >
-                                Approve
+                                {loadingApprove ? "Approving..." : "Approve"}
                             </Button>
+
 
                             <Button startIcon={<FaTimes size={14} />} disableElevation variant="contained"
                                 sx={{
